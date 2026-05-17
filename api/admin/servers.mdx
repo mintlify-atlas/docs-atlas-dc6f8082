@@ -1,0 +1,344 @@
+---
+title: 'Admin API: admin server management endpoints'
+description: 'Admin API for full server lifecycle management: list, create, update, delete servers, manage variables, clear stuck states, and control Wings deployments.'
+keywords: ['api', 'admin', 'servers', 'create server', 'suspend', 'delete server', 'allocations', 'calagopus']
+---
+
+The server management endpoints under `/api/admin/servers` give administrators full control over every server on the panel. They support creating servers from scratch, updating resource limits, managing allocations and variables, and deleting servers.
+
+---
+
+## List servers
+
+Returns a paginated list of all servers across all nodes and owners.
+
+```
+GET /api/admin/servers
+```
+
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page (1–100).</ParamField>
+<ParamField query="search" type="string">Filter by server name.</ParamField>
+
+**Required admin permission:** `servers.read`
+
+<Tabs>
+  <Tab title="curl">
+    ```bash
+    curl https://your-panel.example.com/api/admin/servers \
+      -H "Authorization: Bearer ptlc_YourAdminKey"
+    ```
+  </Tab>
+  <Tab title="Response">
+    ```json
+    {
+      "servers": {
+        "data": [
+          {
+            "uuid": "abc12345-...",
+            "name": "Minecraft SMP",
+            "status": null,
+            "suspended": false,
+            "memory": 2048,
+            "disk": 10240,
+            "cpu": 100
+          }
+        ],
+        "total": 1,
+        "per_page": 10,
+        "page": 1
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Get a server
+
+Returns a single server by UUID or short ID.
+
+```
+GET /api/admin/servers/{server}
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short numeric ID.
+</ParamField>
+
+**Required admin permission:** `servers.read`
+
+---
+
+## Create a server
+
+Creates a new server and triggers installation on the target node.
+
+```
+POST /api/admin/servers
+```
+
+<ParamField body="node_uuid" type="string (UUID)" required>
+  UUID of the node to deploy to.
+</ParamField>
+
+<ParamField body="owner_uuid" type="string (UUID)" required>
+  UUID of the user who will own the server.
+</ParamField>
+
+<ParamField body="egg_uuid" type="string (UUID)" required>
+  UUID of the egg to use.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Server name. 3–255 characters.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional description. Maximum 1024 characters.
+</ParamField>
+
+<ParamField body="startup" type="string" required>
+  Startup command. 1–8192 characters.
+</ParamField>
+
+<ParamField body="image" type="string" required>
+  Docker image. 2–255 characters.
+</ParamField>
+
+<ParamField body="limits" type="object" required>
+  Resource limits for the server.
+  <Expandable title="limits properties">
+    <ParamField body="memory" type="integer" required>Memory limit in MiB. Use `0` for unlimited.</ParamField>
+    <ParamField body="swap" type="integer" required>Swap limit in MiB. Use `-1` to disable, `0` for unlimited.</ParamField>
+    <ParamField body="disk" type="integer" required>Disk limit in MiB.</ParamField>
+    <ParamField body="io_weight" type="integer">Block I/O weight (10–1000). Optional.</ParamField>
+    <ParamField body="cpu" type="integer" required>CPU limit as a percentage. Use `0` for unlimited.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="feature_limits" type="object" required>
+  Allocation and feature limits.
+  <Expandable title="feature_limits properties">
+    <ParamField body="allocation_limit" type="integer" required>Maximum additional allocations.</ParamField>
+    <ParamField body="database_limit" type="integer" required>Maximum databases.</ParamField>
+    <ParamField body="backup_limit" type="integer" required>Maximum backups.</ParamField>
+    <ParamField body="schedule_limit" type="integer" required>Maximum schedules.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="variables" type="array">
+  Egg variable overrides.
+  <Expandable title="variable object">
+    <ParamField body="env_variable" type="string" required>Environment variable name.</ParamField>
+    <ParamField body="value" type="string" required>Value for this variable.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="allocation_uuid" type="string (UUID)">
+  Primary allocation UUID. If omitted, the panel assigns one from the node.
+</ParamField>
+
+<ParamField body="allocation_uuids" type="string[]">
+  Additional allocation UUIDs to assign.
+</ParamField>
+
+<ParamField body="backup_configuration_uuid" type="string (UUID)">
+  Optional backup configuration to apply.
+</ParamField>
+
+<ParamField body="start_on_completion" type="boolean" default="false">
+  Start the server automatically after installation completes.
+</ParamField>
+
+<ParamField body="skip_installer" type="boolean" default="false">
+  Skip the installation script.
+</ParamField>
+
+<ParamField body="external_id" type="string">
+  Optional external identifier. Maximum 255 characters.
+</ParamField>
+
+<ParamField body="timezone" type="string">
+  Timezone string (e.g. `America/New_York`).
+</ParamField>
+
+<ParamField body="hugepages_passthrough_enabled" type="boolean" default="false">
+  Enable HugePages passthrough.
+</ParamField>
+
+<ParamField body="kvm_passthrough_enabled" type="boolean" default="false">
+  Enable KVM passthrough.
+</ParamField>
+
+<ParamField body="pinned_cpus" type="integer[]">
+  List of CPU cores to pin the server to.
+</ParamField>
+
+**Required admin permission:** `servers.create`
+
+---
+
+## Update a server
+
+Updates configuration for an existing server. All body fields are optional.
+
+```
+PATCH /api/admin/servers/{server}
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short ID.
+</ParamField>
+
+The request body accepts the same fields as the create endpoint. Omitted fields are not changed.
+
+**Required admin permission:** `servers.update`
+
+After a successful update, the panel asynchronously syncs the new configuration to the Wings node.
+
+---
+
+## Delete a server
+
+Permanently deletes a server and removes it from the Wings node.
+
+```
+DELETE /api/admin/servers/{server}
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short ID.
+</ParamField>
+
+<ParamField body="force" type="boolean" default="false">
+  If `true`, proceeds with deletion even if the Wings node returns an error.
+</ParamField>
+
+<ParamField body="delete_backups" type="boolean" default="false">
+  Also delete all backups associated with this server.
+</ParamField>
+
+**Required admin permission:** `servers.delete`
+
+<Warning>
+  This action is irreversible. The server's files are permanently removed from the node.
+</Warning>
+
+---
+
+## Clear server state
+
+Clears a stuck installation or backup-restore state.
+
+```
+POST /api/admin/servers/{server}/clear-state
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short ID.
+</ParamField>
+
+**Required admin permission:** `servers.update`
+
+---
+
+## Server variables
+
+### List variables
+
+```
+GET /api/admin/servers/{server}/variables
+```
+
+Returns the egg variables and their current values for the server.
+
+**Required admin permission:** `servers.read`
+
+### Update a variable
+
+```
+PATCH /api/admin/servers/{server}/variables
+```
+
+<ParamField body="env_variable" type="string" required>Environment variable name.</ParamField>
+<ParamField body="value" type="string" required>New value for the variable.</ParamField>
+
+**Required admin permission:** `servers.update`
+
+---
+
+## Server object fields
+
+<ResponseField name="uuid" type="string">
+  Full UUID of the server.
+</ResponseField>
+
+<ResponseField name="uuid_short" type="integer">
+  Short numeric ID used in URLs.
+</ResponseField>
+
+<ResponseField name="external_id" type="string | null">
+  Optional external identifier.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Server display name.
+</ResponseField>
+
+<ResponseField name="description" type="string | null">
+  Optional description.
+</ResponseField>
+
+<ResponseField name="status" type="string | null">
+  Installation status: `installing`, `install_failed`, `restoring_backup`, or `null` (ready).
+</ResponseField>
+
+<ResponseField name="suspended" type="boolean">
+  Whether the server is suspended.
+</ResponseField>
+
+<ResponseField name="memory" type="integer">
+  Memory limit in MiB.
+</ResponseField>
+
+<ResponseField name="swap" type="integer">
+  Swap limit in MiB.
+</ResponseField>
+
+<ResponseField name="disk" type="integer">
+  Disk limit in MiB.
+</ResponseField>
+
+<ResponseField name="cpu" type="integer">
+  CPU limit as a percentage.
+</ResponseField>
+
+<ResponseField name="startup" type="string">
+  Startup command template.
+</ResponseField>
+
+<ResponseField name="image" type="string">
+  Docker image name.
+</ResponseField>
+
+<ResponseField name="node" type="object">
+  The node this server is deployed on.
+</ResponseField>
+
+<ResponseField name="owner" type="object">
+  The user who owns this server.
+</ResponseField>
+
+<ResponseField name="egg" type="object">
+  The egg used by this server.
+</ResponseField>
+
+<ResponseField name="allocation" type="object | null">
+  Primary IP/port allocation.
+</ResponseField>
+
+<ResponseField name="created" type="string">
+  ISO 8601 creation timestamp.
+</ResponseField>

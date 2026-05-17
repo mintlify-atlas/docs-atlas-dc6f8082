@@ -1,0 +1,115 @@
+---
+title: "Users and roles in Calagopus Panel"
+description: "Manage user accounts, admin access, and custom roles in Calagopus Panel. Learn how granular permissions and sub-users control who can do what."
+keywords: ['calagopus', 'users', 'roles', 'permissions', 'two-factor authentication', 'subusers', 'admin access']
+---
+
+Calagopus has two levels of access: the admin panel and individual server access. Admin access is controlled through user accounts and roles. Server-level access is controlled through sub-users assigned directly to each server.
+
+## User accounts
+
+Every person who logs into Calagopus has a user account. Accounts require a username, email address, first name, last name, and password. An optional language preference controls which locale the interface uses.
+
+### Creating a user
+
+<Steps>
+  <Step title="Open Users">
+    In the admin panel, navigate to **Users** and click **Create**.
+  </Step>
+  <Step title="Fill in account details">
+    Enter the username, email, first name, last name, and a temporary password. The user can change their password after logging in.
+  </Step>
+  <Step title="Assign a role (optional)">
+    Select a role from the **Role** dropdown to grant the user specific admin permissions. Leave this blank for a regular user with no admin access.
+  </Step>
+  <Step title="Set admin flag (optional)">
+    Enable the **Admin** toggle to give the user full, unrestricted access to the admin panel. This bypasses role-based permission checks.
+  </Step>
+  <Step title="Save">
+    Click **Save**. The user can now log in immediately.
+  </Step>
+</Steps>
+
+<Warning>The **Admin** flag grants complete access to every admin function regardless of the user's assigned role. Reserve it for trusted administrators only.</Warning>
+
+### Managing existing users
+
+From a user's detail page you can:
+
+- Edit account details and reset their password
+- Send a password reset email to their address
+- Disable their two-factor authentication if they are locked out
+- Impersonate the user to troubleshoot issues as them
+- Delete the account
+
+<Info>Impersonation lets an admin log in as any user without knowing their password. All actions taken during an impersonation session are attributed to the original user account, not the admin.</Info>
+
+## Two-factor authentication
+
+Users can enable two-factor authentication (2FA) from their account settings. Once enabled, they must enter a TOTP code on every login.
+
+Admins can force-disable a user's 2FA from the user's detail page using the **Disable Two Factor** button. This is useful if a user loses access to their authenticator app.
+
+## Roles
+
+Roles let you delegate specific admin tasks without granting full admin access. A role is a named collection of admin permissions and server permissions that you can assign to one or more users.
+
+### Creating a role
+
+<Steps>
+  <Step title="Open Roles">
+    In the admin panel, navigate to **Roles** and click **Create**.
+  </Step>
+  <Step title="Name the role">
+    Enter a descriptive name such as `Node Manager` or `Support Agent`.
+  </Step>
+  <Step title="Enable two-factor requirement (optional)">
+    Toggle **Require Two Factor** to force all users assigned this role to have 2FA enabled before they can access admin functions.
+  </Step>
+  <Step title="Select admin permissions">
+    Under **Admin Permissions**, choose which parts of the admin panel the role can access. Permissions are grouped by resource type.
+  </Step>
+  <Step title="Select server permissions">
+    Under **Server Permissions**, choose which server-level actions users with this role can perform by default across all servers.
+  </Step>
+  <Step title="Save">
+    Click **Save**. Assign the role to users from their account page.
+  </Step>
+</Steps>
+
+### Permission groups
+
+Admin permissions are grouped by the resources they govern:
+
+<CardGroup cols={2}>
+  <Card title="Servers" icon="server">
+    Create, read, update, delete, suspend, and transfer servers. Manage server allocations, databases, backups, and variables.
+  </Card>
+  <Card title="Nodes" icon="network-wired">
+    Create, read, update, and delete nodes. Manage node allocations, configuration, logs, and transfers.
+  </Card>
+  <Card title="Users" icon="users">
+    Create, read, update, and delete user accounts. Send password reset emails, disable 2FA, and impersonate users.
+  </Card>
+  <Card title="Roles" icon="shield-halved">
+    Create, read, update, and delete roles. Assign roles to users.
+  </Card>
+  <Card title="Nests and eggs" icon="egg">
+    Create, read, update, delete, and move eggs. Manage egg variables and install scripts.
+  </Card>
+  <Card title="Locations" icon="location-dot">
+    Create, read, update, and delete locations.
+  </Card>
+  <Card title="Backup configurations" icon="archive">
+    Create, read, update, and delete backup configurations and their S3 or Restic settings.
+  </Card>
+  <Card title="Activity logs" icon="clock-rotate-left">
+    Read admin and server activity logs.
+  </Card>
+</CardGroup>
+
+## Sub-users
+
+Sub-users are a separate concept from roles. A sub-user is a user who has been granted access to a specific server by its owner or an admin. Sub-users cannot access the admin panel; they can only interact with the servers they have been invited to.
+
+For instructions on adding and managing sub-users, see [Server management — Subusers](/features/server-management#subusers).

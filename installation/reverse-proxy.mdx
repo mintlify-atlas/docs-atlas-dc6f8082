@@ -1,0 +1,136 @@
+---
+title: 'Configure a reverse proxy for Calagopus Panel'
+description: 'Proxy Calagopus Panel through nginx or Caddy with TLS termination and WebSocket support. Includes full config examples for both reverse proxies.'
+keywords: ['nginx', 'caddy', 'reverse proxy', 'ssl', 'tls', 'websocket', 'calagopus']
+---
+
+Calagopus Panel listens on port 8000 by default and expects a reverse proxy to handle TLS termination and serve traffic over HTTPS. The panel's real-time server console uses WebSockets, so your proxy configuration must forward the `Upgrade` and `Connection` headers correctly.
+
+## Prerequisites
+
+- The panel is running and accessible at `http://localhost:8000`
+- A domain name with DNS pointed at your server
+- TLS certificates (Let's Encrypt or your own)
+
+## nginx
+
+The example below configures nginx to proxy all traffic to port 8000. TLS is handled by nginx; the backend connection is plain HTTP.
+
+<Note>
+  Replace `panel.example.com` with your actual domain, and update the `ssl_certificate` paths to match your certificate locations. If you use Certbot, run `certbot --nginx -d panel.example.com` and it will update the server block automatically.
+</Note>
+
+```nginx /etc/nginx/sites-available/calagopus
+server {
+    listen 80;
+    server_name panel.example.com;
+
+    # Redirect all HTTP traffic to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name panel.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/panel.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/panel.example.com/privkey.pem;
+
+    # Recommended TLS settings
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass         http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+
+        # Required for WebSocket support (real-time console)
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Standard proxy headers
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Allow large file uploads (server file manager)
+        client_max_body_size 100m;
+    }
+}
+```
+
+Enable the site and reload nginx:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/calagopus /etc/nginx/sites-enabled/calagopus
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+## Caddy
+
+Caddy automatically provisions and renews Let's Encrypt certificates. The configuration is significantly shorter than the nginx equivalent.
+
+<Tip>
+  Caddy handles the `Upgrade` and `Connection` headers for WebSockets automatically — no extra directives needed.
+</Tip>
+
+```caddy /etc/caddy/Caddyfile
+panel.example.com {
+    reverse_proxy localhost:8000
+}
+```
+
+Reload Caddy to apply the change:
+
+```bash
+sudo systemctl reload caddy
+```
+
+## Comparing the two options
+
+<Columns cols={2}>
+  <Card title="nginx" icon="server">
+    Widely deployed, extensive documentation, fine-grained control over TLS settings and headers. Requires manual certificate management unless paired with Certbot.
+  </Card>
+  <Card title="Caddy" icon="bolt">
+    Automatic HTTPS with zero certificate configuration. Ideal for simple single-domain setups. Less common in enterprise environments.
+  </Card>
+</Columns>
+
+## WebSocket support
+
+The panel uses WebSockets for the real-time server console. Without correct proxy headers, the console will fail to connect or will fall back to polling.
+
+The critical headers are:
+
+```nginx
+proxy_set_header Upgrade    $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_http_version 1.1;
+```
+
+If you are using a cloud load balancer or CDN in front of nginx, make sure WebSocket traffic is also enabled at that layer.
+
+## SSL/TLS considerations
+
+<Warning>
+  Never expose the panel on plain HTTP in production. Cookies and session tokens transmitted over HTTP can be intercepted.
+</Warning>
+
+- Use **TLS 1.2 or 1.3** only. Older protocol versions have known vulnerabilities.
+- Set `X-Forwarded-Proto: https` so the panel knows it is behind HTTPS. Without this, some redirect and cookie behaviours may be incorrect.
+- If you manage certificates manually, set up automatic renewal (e.g., `certbot renew` via cron or a systemd timer) before they expire.
+
+## Next steps
+
+Once your reverse proxy is running and HTTPS is working, your panel is ready to use.
+
+<Columns cols={2}>
+  <Card title="Docker setup" icon="docker" href="/installation/docker">
+    Review how the panel container and services are configured.
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/installation/configuration">
+    Review environment variables and tune the panel for your deployment.
+  </Card>
+</Columns>

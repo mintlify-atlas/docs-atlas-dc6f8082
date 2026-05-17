@@ -1,81 +1,172 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quickstart: deploy Calagopus in 5 minutes"
+description: "Deploy a working Calagopus game server panel using Docker Compose, set your encryption key, create your first admin account, and start managing servers."
+keywords: ['quickstart', 'docker compose', 'install', 'getting started', 'calagopus']
 icon: 'rocket'
 ---
 
-## Get started in three steps
+This guide gets a working Calagopus panel running on your machine using Docker Compose. The Compose file bundles the panel, PostgreSQL, and Valkey so no separate database setup is needed.
 
-Get your documentation site running locally and make your first customization.
+<Warning>
+  Before you start, make sure Docker and Docker Compose are installed on your server. Calagopus requires Docker Compose v2 or later.
+</Warning>
 
-### Step 1: Set up your local environment
+## Deploy with Docker Compose
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Steps>
+  <Step title="Download the Compose file">
+    Download the official `compose.yml` to a directory of your choice, such as `/opt/calagopus`.
 
-### Step 2: Deploy your changes
+    ```bash
+    mkdir -p /opt/calagopus && cd /opt/calagopus
+    curl -O https://raw.githubusercontent.com/calagopus/panel/main/compose.yml
+    ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    The file defines three services: the panel (`web`), a PostgreSQL database (`db`), and a Valkey cache (`cache`).
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```yaml compose.yml
+    services:
+      web:
+        image: ghcr.io/calagopus/panel:latest
+        restart: unless-stopped
+        environment:
+          - TZ=Europe/Berlin
+          - REDIS_URL=redis://cache
+          - DATABASE_URL=postgresql://panel:panel@db/panel
+          - DATABASE_MIGRATE=true
+          - PORT=8000
+          - APP_DEBUG=false
+          - APP_LOG_DIRECTORY=/var/log/calagopus
+          - APP_PRIMARY=true
+          - APP_ENABLE_WINGS_PROXY=true
+          - APP_ENCRYPTION_KEY=CHANGEME
+          - APP_USE_DECRYPTION_CACHE=true
+          - APP_USE_INTERNAL_CACHE=true
+        volumes:
+          - ./data:/var/lib/calagopus
+          - ./logs:/var/log/calagopus
+        ports:
+          - 8000:8000
+        extra_hosts:
+          - "host.docker.internal:host-gateway"
+        depends_on:
+          - db
+          - cache
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+      db:
+        image: ghcr.io/calagopus/pgautoupgrade:18-alpine
+        restart: unless-stopped
+        environment:
+          - TZ=Europe/Berlin
+          - POSTGRES_USER=panel
+          - POSTGRES_PASSWORD=panel
+          - POSTGRES_DB=panel
+          - PGDATA=/data
+        volumes:
+          - ./postgres:/data
 
-### Step 3: Go live
+      cache:
+        image: ghcr.io/calagopus/valkey:latest
+        restart: unless-stopped
+        command: --protected-mode no --save 60 1
+        environment:
+          TZ: Europe/Berlin
+        volumes:
+          - ./cache:/data
+    ```
+  </Step>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+  <Step title="Set a secure encryption key">
+    Open `compose.yml` and replace the `APP_ENCRYPTION_KEY` value with a random secret. This key encrypts sensitive data such as node daemon tokens and database host passwords. It cannot be changed after the panel is started without losing access to encrypted records.
+
+    ```yaml
+    - APP_ENCRYPTION_KEY=CHANGEME   # replace with a strong random secret
+    ```
+
+    Generate a suitable value with:
+
+    ```bash
+    openssl rand -hex 32
+    ```
+
+    <Warning>
+      Never leave `APP_ENCRYPTION_KEY` set to `CHANGEME` in production. Store this value somewhere safe — it cannot be recovered if lost.
+    </Warning>
+  </Step>
+
+  <Step title="Start the panel">
+    From the directory containing `compose.yml`, run:
+
+    ```bash
+    docker compose up -d
+    ```
+
+    Docker pulls the images and starts all three services. The `web` service runs database migrations automatically on first boot (`DATABASE_MIGRATE=true`). Wait a few seconds for migrations to complete before proceeding.
+
+    Check the logs if the container does not come up as expected:
+
+    ```bash
+    docker compose logs -f web
+    ```
+  </Step>
+
+  <Step title="Create an admin user">
+    Use the panel CLI to create your first administrator account. The command runs interactively and prompts for username, email, name, password, and admin status.
+
+    ```bash
+    docker compose exec web panel users create
+    ```
+
+    To create a user non-interactively, pass all arguments on the command line:
+
+    ```bash
+    docker compose exec web panel users create \
+      --username admin \
+      --email admin@example.com \
+      --name-first Admin \
+      --name-last User \
+      --password "your-password" \
+      --admin true
+    ```
+  </Step>
+
+  <Step title="Open the panel">
+    Navigate to `http://your-server-ip:8000` in your browser and log in with the credentials you just created.
+
+    <Tip>
+      For production deployments, place a reverse proxy such as nginx or Caddy in front of the panel and terminate TLS there. See the [reverse proxy guide](/installation/reverse-proxy) for configuration examples.
+    </Tip>
+  </Step>
+</Steps>
+
+## Environment variable reference
+
+The following variables in `compose.yml` should be reviewed before deploying.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_ENCRYPTION_KEY` | `CHANGEME` | **Required.** Secret key used to encrypt sensitive values at rest. |
+| `TZ` | `Europe/Berlin` | Timezone for the panel and database containers. |
+| `PORT` | `8000` | Port the panel HTTP server listens on inside the container. |
+| `APP_PRIMARY` | `true` | Marks this instance as responsible for background tasks (cleanup, schedules). Set to `false` on replica instances. |
+| `APP_ENABLE_WINGS_PROXY` | `true` | Proxies client WebSocket connections through the panel to Wings. Useful for home networks; disable for high-traffic multi-node setups. |
+| `APP_USE_DECRYPTION_CACHE` | `true` | Caches decrypted values in memory and Redis for better performance. |
+| `APP_USE_INTERNAL_CACHE` | `true` | Caches short-lived values in application memory in addition to Redis. |
+| `APP_DEBUG` | `false` | Enables verbose debug logging. Do not enable in production. |
+
+## Wings compatibility
+
+<Note>
+  Calagopus is fully compatible with existing Pterodactyl Wings nodes. Add your Wings nodes from **Admin → Nodes** without reinstalling or reconfiguring the Wings daemon.
+</Note>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Full installation guide" icon="server" href="/installation/docker">
+    Detailed installation with reverse proxy setup, TLS, and production hardening.
+  </Card>
+  <Card title="Migrate from Pterodactyl" icon="arrows-rotate" href="/upgrade-from-pterodactyl">
+    Import users, servers, nodes, and eggs from an existing Pterodactyl panel.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

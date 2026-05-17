@@ -1,0 +1,426 @@
+---
+title: 'Calagopus CLI reference for panel administration'
+description: 'Complete reference for the panel CLI: create users and nodes, manage nests, import from Pterodactyl, handle extensions, and run diagnostics.'
+keywords: ['calagopus', 'cli', 'command line', 'panel', 'administration', 'import', 'pterodactyl migration']
+---
+
+The `panel` binary ships with a built-in CLI for administrative operations that don't require the web UI. Use it to create resources, manage extensions, run diagnostics, and migrate from other panels. Most commands require the panel's environment to be present (the same config used by the running service).
+
+All examples below assume a Docker Compose deployment. Run them from the directory containing your `compose.yml`:
+
+```bash
+docker compose exec web panel <command> [flags]
+```
+
+<Note>
+  Interactive prompts appear automatically when required arguments are omitted and the terminal supports them. When running in a non-interactive context (scripts, CI), pass all required flags explicitly.
+</Note>
+
+---
+
+## Top-level commands
+
+### `version`
+
+Prints the current panel version, build target, and copyright notice.
+
+```bash
+docker compose exec web panel version
+```
+
+### `service-install`
+
+Installs a system service unit for the panel binary. Linux only. Supports systemd and OpenRC.
+
+```bash
+docker compose exec web panel service-install [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o`, `--override` | `false` | Overwrite an existing service file. |
+| `-i`, `--init` | `auto` | Init system to target: `systemd`, `openrc`, or `auto`. |
+
+When `auto` is used, the command detects the init system by checking for `/run/systemd/system` (systemd) or `/run/openrc` / `/sbin/openrc-run` (OpenRC).
+
+### `diagnostics`
+
+Collects system information and recent log lines, then optionally uploads the report to pastes.dev for sharing with support.
+
+```bash
+docker compose exec web panel diagnostics [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-l`, `--log-lines` | `500` | Number of log lines to include in the report. |
+
+You are asked whether to review the collected data before uploading, and again whether to upload at all.
+
+---
+
+## `users` commands
+
+Manage user accounts from the command line.
+
+### `users create`
+
+Creates a new user. All fields can be provided as flags or entered interactively.
+
+```bash
+docker compose exec web panel users create [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--username` | Username for the new account. |
+| `--email` | Email address. |
+| `--name-first` | First name. |
+| `--name-last` | Last name. |
+| `--password` | Password. Omit to be prompted securely. |
+| `--admin` | `true` or `false`. Defaults to `false` when non-interactive. |
+| `--json` | Print the created user as JSON. |
+
+```bash
+# Interactive
+docker compose exec web panel users create
+
+# Non-interactive
+docker compose exec web panel users create \
+  --username admin \
+  --email admin@example.com \
+  --name-first Alice \
+  --name-last Smith \
+  --password 'hunter2' \
+  --admin true
+```
+
+### `users reset-password`
+
+Resets the password for an existing user. The user can be identified by username, email, or UUID.
+
+```bash
+docker compose exec web panel users reset-password [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--user` | Username, email address, or UUID of the target account. |
+| `--password` | New password. Omit to be prompted securely. |
+
+```bash
+docker compose exec web panel users reset-password --user alice@example.com
+```
+
+### `users disable-2fa`
+
+Removes TOTP (two-factor authentication) from a user's account, including all recovery codes. Use this to unlock an account when a user has lost their authenticator device.
+
+```bash
+docker compose exec web panel users disable-2fa [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--user` | Username, email address, or UUID of the target account. |
+
+```bash
+docker compose exec web panel users disable-2fa --user alice@example.com
+```
+
+The command exits with an error if the user does not have TOTP enabled.
+
+---
+
+## `nodes` commands
+
+Manage daemon nodes.
+
+### `nodes create`
+
+Creates a new node. Use this when adding a Wings server outside of the web UI, for example in automated provisioning scripts.
+
+```bash
+docker compose exec web panel nodes create [flags]
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--location-uuid` | Yes | UUID of the location to assign this node to. |
+| `--name` | Yes | Display name for the node. |
+| `--url` | Yes | URL of the Wings daemon (for example, `https://node1.example.com:8080`). |
+| `--memory` | Yes | Total memory on the node, in bytes. |
+| `--disk` | Yes | Total disk space on the node, in bytes. |
+| `--sftp-port` | No | SFTP port (default: `2022`). |
+| `--sftp-host` | No | SFTP hostname if different from the daemon URL host. |
+| `--public-url` | No | Public URL used for user-facing links. |
+| `--description` | No | Optional description. |
+| `--backup-configuration-uuid` | No | UUID of a backup configuration to associate with this node. |
+| `--deployment-enabled` | No | `true` or `false` (default: `true`). |
+| `--maintenance-enabled` | No | `true` or `false` (default: `false`). |
+| `--json` | No | Print the created node as JSON. |
+
+### `nodes reset-token`
+
+Generates a new authentication token for a node. Use this if a node's token is compromised or after a Wings reinstall.
+
+```bash
+docker compose exec web panel nodes reset-token [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--node` | Name or UUID of the node. |
+| `--json` | Print the new token ID and token as JSON. |
+
+```bash
+docker compose exec web panel nodes reset-token --node "us-east-1" --json
+```
+
+The output includes both the **token ID** and the **token**. Update the Wings configuration on the node with these values.
+
+---
+
+## `nests` commands
+
+Manage nests — the top-level containers that group eggs.
+
+### `nests create`
+
+Creates a new, empty nest.
+
+```bash
+docker compose exec web panel nests create [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--author` | Author identifier (typically an email address, for example `admin@example.com`). |
+| `--name` | Name for the nest. |
+| `--json` | Print the created nest as JSON. |
+
+### `nests mass-import`
+
+Imports all egg files from a directory into an existing nest. Supports both JSON and YAML/YML egg files.
+
+```bash
+docker compose exec web panel nests mass-import [flags] <path>
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--nest` | — | Name or UUID of the target nest. |
+| `-r`, `--recursive` | `false` | Scan the path recursively for egg files. |
+| `-u`, `--update` | `true` | Update existing eggs when a conflict is detected. |
+| `-i`, `--ignore-errors` | `false` | Continue past errors on individual eggs instead of aborting. |
+
+```bash
+# Import eggs from a flat directory
+docker compose exec web panel nests mass-import --nest "Game Servers" /path/to/eggs
+
+# Import recursively and skip erroring eggs
+docker compose exec web panel nests mass-import \
+  --nest "Game Servers" \
+  --recursive \
+  --ignore-errors \
+  /path/to/eggs
+```
+
+<Tip>
+  If no eggs are imported, try adding `--recursive` or verify that the files have `.json`, `.yml`, or `.yaml` extensions.
+</Tip>
+
+---
+
+## `backups` commands
+
+### `backups s3 import`
+
+Reconciles S3 storage with the panel database — creates database records for backup files that exist in S3 but are not tracked.
+
+```bash
+docker compose exec web panel backups s3 import
+```
+
+---
+
+## `import` commands
+
+Migrate data from another panel into Calagopus.
+
+### `import pterodactyl`
+
+Imports users, SSH keys, locations, nodes, nests, eggs, egg variables, database hosts, servers, server databases, server variables, allocations, subusers, schedules, and backups from a Pterodactyl installation.
+
+```bash
+docker compose exec web panel import pterodactyl [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-e`, `--environment` | `/var/www/pterodactyl/.env` | Path to the Pterodactyl `.env` file. |
+
+```bash
+docker compose exec web panel import pterodactyl \
+  --environment /var/www/pterodactyl/.env
+```
+
+The command reads the Pterodactyl database credentials and app key from the `.env` file, connects to the source MySQL database, and inserts records into the Calagopus PostgreSQL database. Existing records (matched by UUID) are skipped without error.
+
+<Warning>
+  Set up and configure the Calagopus panel fully before running the import. The import reads from a live Pterodactyl database, so the source panel can remain running during migration.
+</Warning>
+
+### `import pelican`
+
+Imports from a [Pelican](https://pelican.dev) panel. Accepts the same `--environment` flag as the Pterodactyl importer.
+
+```bash
+docker compose exec web panel import pelican \
+  --environment /var/www/pelican/.env
+```
+
+---
+
+## `extensions` commands
+
+Manage Calagopus extensions — packaged frontend and backend modules distributed as `.c7s.zip` archives.
+
+<Note>
+  Extension commands that modify the extension list (`add`, `remove`, `update`, `clear`) must be run from the panel root directory, where the `.sqlx` directory is present.
+</Note>
+
+### `extensions list`
+
+Lists all installed extensions and their apply status.
+
+```bash
+docker compose exec web panel extensions list [--json]
+```
+
+### `extensions inspect`
+
+Displays metadata for a `.c7s.zip` extension archive without installing it.
+
+```bash
+docker compose exec web panel extensions inspect <file>
+```
+
+Shows the extension's name, description, version, authors, packed and unpacked size, frontend and backend dependencies, and database migrations if any.
+
+### `extensions add`
+
+Installs an extension from a `.c7s.zip` file. After adding, run `extensions apply` to build and activate the extension.
+
+```bash
+docker compose exec web panel extensions add [flags] <file>
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--skip-version-check` | `false` | Skip the panel version compatibility check. Not recommended. |
+
+```bash
+docker compose exec web panel extensions add ./my-extension.c7s.zip
+docker compose exec web panel extensions apply
+```
+
+### `extensions update`
+
+Updates an already-installed extension from a new `.c7s.zip` file.
+
+```bash
+docker compose exec web panel extensions update <identifier> <file>
+```
+
+### `extensions remove`
+
+Removes an installed extension by its package identifier.
+
+```bash
+docker compose exec web panel extensions remove <identifier>
+```
+
+### `extensions clear`
+
+Removes all installed extensions.
+
+```bash
+docker compose exec web panel extensions clear
+```
+
+### `extensions apply`
+
+Builds the panel with all currently installed extensions and replaces the running binary. This is required after adding, updating, or removing extensions.
+
+```bash
+docker compose exec web panel extensions apply
+```
+
+Requires `node`, `pnpm`, and the Rust toolchain to be present in the build environment.
+
+### `extensions init`
+
+Scaffolds a new extension using a template.
+
+```bash
+docker compose exec web panel extensions init
+```
+
+### `extensions export`
+
+Exports an installed extension to a `.c7s.zip` archive.
+
+```bash
+docker compose exec web panel extensions export <identifier>
+```
+
+### `extensions resync`
+
+Resyncs the internal extension list used during the build step. Run this if the list becomes out of sync.
+
+```bash
+docker compose exec web panel extensions resync
+```
+
+---
+
+## `database-migrator` commands
+
+Low-level commands for managing the panel's database migration state. These are most useful when running migrations manually or when developing extensions that add their own migrations.
+
+### `database-migrator status`
+
+Shows which migrations have been applied and which are pending.
+
+```bash
+docker compose exec web panel database-migrator status
+```
+
+### `database-migrator migrate`
+
+Applies all pending database migrations.
+
+```bash
+docker compose exec web panel database-migrator migrate
+```
+
+<Note>
+  When `DATABASE_MIGRATE=true` is set in `compose.yml`, this runs automatically on every container start. Use this command only when you need to run migrations manually, for example after adding an extension's migrations.
+</Note>
+
+### `database-migrator create`
+
+Creates a new blank migration file for an extension. Intended for extension developers.
+
+```bash
+docker compose exec web panel database-migrator create
+```
+
+### `database-migrator version`
+
+Prints the database migrator version.
+
+```bash
+docker compose exec web panel database-migrator version
+```

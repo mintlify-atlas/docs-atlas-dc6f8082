@@ -1,0 +1,171 @@
+---
+title: "Auth provider extensions"
+description: "Install and configure backend auth provider extensions to replace or supplement Calagopus's built-in username/password authentication."
+keywords: ['calagopus', 'auth provider', 'authentication', 'backend extension', 'custom login', 'sso']
+---
+
+Auth provider extensions are backend extensions that hook into the panel's authentication layer. They can replace or work alongside the built-in username/password flow to enable custom login mechanisms such as LDAP, SAML, or any proprietary identity system your organization uses.
+
+<Note>
+  The built-in OAuth2 login (Google, GitHub, Discord, and so on) is configured separately under **Admin → OAuth Providers** and does not require an extension. Auth provider extensions are for custom backends that OAuth2 does not cover.
+</Note>
+
+## How auth provider extensions work
+
+Auth provider extensions are backend Rust crates that implement the `Extension` trait from the `shared` crate. During startup, the extension's `initialize` method runs after the database has been migrated and before the web server starts. From there, the extension registers its authentication routes by implementing `initialize_router`, which receives an `ExtensionRouteBuilder` and returns a modified builder with the extension's routes attached.
+
+The `ExtensionRouteBuilder` exposes mount points for every route group the panel supports:
+
+| Method | Route group |
+|--------|-------------|
+| `add_global_router` | `/` |
+| `add_auth_api_router` | `/api/auth` |
+| `add_admin_api_router` | `/api/admin` |
+| `add_client_api_router` | `/api/client` |
+| `add_client_server_api_router` | `/api/client/servers/{server}` |
+| `add_remote_api_router` | `/api/remote` |
+| `add_remote_server_api_router` | `/api/remote/servers/{server}` |
+
+An auth provider extension typically attaches its endpoints under `/api/auth` using `add_auth_api_router`. The existing authentication middleware is already applied to the admin and client route groups by the parent router, so extensions mounted there can rely on it.
+
+## Extension lifecycle
+
+Every backend extension implements the `Extension` trait. The relevant lifecycle methods for an auth provider are:
+
+```rust
+#[async_trait::async_trait]
+pub trait Extension: Send + Sync {
+    // Runs once after database migration, before the web server starts.
+    async fn initialize(&mut self, state: State) {}
+
+    // Add routes to any of the panel's route groups.
+    async fn initialize_router(
+        &mut self,
+        state: State,
+        builder: ExtensionRouteBuilder,
+    ) -> ExtensionRouteBuilder {
+        builder
+    }
+
+    // Register or modify permission groups.
+    async fn initialize_permissions(
+        &mut self,
+        state: State,
+        builder: ExtensionPermissionsBuilder,
+    ) -> ExtensionPermissionsBuilder {
+        builder
+    }
+
+    // Provide a settings deserializer so the panel can persist
+    // and restore your extension's configuration from the database.
+    async fn settings_deserializer(&self, state: State) -> ExtensionSettingsDeserializer {
+        Arc::new(EmptySettings)
+    }
+}
+```
+
+Your extension must expose a `pub struct ExtensionStruct` that implements `Extension` and `Default`. This struct is the entry point the panel looks for when it loads the compiled crate.
+
+## Extension settings
+
+If your auth provider needs configuration (for example, an LDAP server URL or a shared secret), implement `settings_deserializer` to return a type that implements both `SettingsSerializeExt` and `SettingsDeserializeExt`. The panel serializes settings to the database and exposes them through the admin settings interface.
+
+The `SettingsSerializer` and `SettingsDeserializer` types support raw, serde-serialized, and encrypted values:
+
+```rust
+// Serializing settings
+pub async fn serialize(
+    &self,
+    serializer: SettingsSerializer,
+) -> Result<SettingsSerializer, anyhow::Error> {
+    Ok(serializer
+        .write_raw_setting("server_url", &self.server_url)
+        .write_serde_encrypted_setting("api_key", &self.api_key).await?)
+}
+```
+
+Encrypted settings are stored as base64-encoded ciphertext using the panel's `APP_ENCRYPTION_KEY`. Values are decrypted transparently on read.
+
+## Installing an auth provider extension
+
+<Steps>
+  <Step title="Verify the heavy image is running">
+    Extension management requires the heavy Docker image. Confirm your `compose.yml` uses `ghcr.io/calagopus/panel:heavy` and that the `/app/extensions` volume is mapped.
+  </Step>
+  <Step title="Upload the extension archive">
+    In **Admin → Extensions**, click **Upload extension** and select the `.c7s.zip` archive provided by the extension author. The panel validates the archive structure, checks that `pub struct ExtensionStruct` exists in `backend/src/lib.rs`, and confirms the `panel_version` requirement matches the running panel version.
+  </Step>
+  <Step title="Rebuild the panel">
+    Click **Rebuild** in the Extensions panel. The build process compiles the Rust crate into the running image. Monitor the build log to confirm success.
+  </Step>
+  <Step title="Configure the extension">
+    After the rebuild completes and the panel restarts, navigate to **Admin → Extensions → [Your extension name]** to configure any settings the extension exposes through its settings deserializer.
+  </Step>
+  <Step title="Verify authentication">
+    Test the authentication flow by attempting to log in using the method provided by the extension. Check the panel logs for any errors from the extension's `initialize` or route handlers.
+  </Step>
+</Steps>
+
+## Extension permissions
+
+An auth provider extension can register new admin or server permission groups using `initialize_permissions`. This is useful if you want to gate access to extension-specific admin features behind a permission.
+
+```rust
+async fn initialize_permissions(
+    &mut self,
+    state: State,
+    builder: ExtensionPermissionsBuilder,
+) -> ExtensionPermissionsBuilder {
+    builder.add_admin_permission_group(
+        "my_auth",
+        PermissionGroup {
+            name: "My Auth Provider",
+            permissions: &[("configure", "Configure the auth provider settings")],
+        },
+    )
+}
+```
+
+## Inter-extension communication
+
+Extensions can call into each other through the `process_call` mechanism. To avoid naming collisions, prefix call names with your package identifier (e.g., `com_acme_my-auth_validate_token`).
+
+```rust
+async fn process_call(
+    &self,
+    name: &str,
+    args: &[ExtensionCallValue],
+) -> Option<ExtensionCallValue> {
+    if name == "com_acme_myauth_validate_token" {
+        // handle call
+        return Some(Box::new(result));
+    }
+    None // not handled; pass to next extension
+}
+```
+
+Return `None` for calls that do not apply to your extension so the matching process continues to the next registered extension.
+
+## Removing an auth provider extension
+
+<Steps>
+  <Step title="Disable the authentication flow">
+    Before removing the extension, ensure users have an alternative login method. Removing the extension while it is the only auth method will lock users out.
+  </Step>
+  <Step title="Delete the extension">
+    In **Admin → Extensions**, delete the extension. If the extension added database migrations, enable **Remove migrations** to roll them back.
+  </Step>
+  <Step title="Rebuild">
+    Trigger a rebuild to remove the extension from the compiled binary.
+  </Step>
+</Steps>
+
+<Warning>
+  If the auth provider extension is the sole login method for any admin accounts, remove or update those accounts before deleting the extension.
+</Warning>
+
+## Related
+
+- [Extensions overview](/extensions/overview) — requirements, archive format, and the rebuild process
+- [Frontend extensions](/extensions/frontend-extensions) — add a configuration UI for your extension
+- [Admin → OAuth Providers](/administration/oauth-providers) — built-in OAuth2 login, no extension required

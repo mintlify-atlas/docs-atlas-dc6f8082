@@ -1,0 +1,116 @@
+---
+title: "Server management in Calagopus Panel"
+description: "Learn how to manage game servers from the Calagopus dashboard: console, power controls, file manager, resource stats, schedules, and more."
+keywords: ['calagopus', 'server management', 'console', 'power actions', 'file manager', 'subusers', 'allocations']
+---
+
+Calagopus provides a full-featured server management interface that lets you interact with any server directly from your browser — no SSH required. Each server has a dedicated set of pages covering the console, files, startup configuration, network allocations, and access control.
+
+## Console
+
+The console page is the main hub for a running server. It shows a real-time terminal powered by a WebSocket connection to the Wings daemon. You can type commands directly into the input field at the bottom and press Enter to send them to the running process.
+
+The console page also displays the server name, description, and current power state in a sticky header so the information remains visible while you scroll.
+
+<Tip>If the WebSocket disconnects, the console reconnects automatically. A status banner appears at the top of the page while the connection is being re-established.</Tip>
+
+## Power controls
+
+Four power actions are available from the console page:
+
+<CardGroup cols={2}>
+  <Card title="Start" icon="play">
+    Start a server that is currently offline. The button is disabled if the server is suspended or being transferred.
+  </Card>
+  <Card title="Restart" icon="rotate-right">
+    Send a graceful restart signal. Available whenever the server is not offline.
+  </Card>
+  <Card title="Stop" icon="stop">
+    Send the egg's configured stop command. When the server is already in the process of stopping, this button changes to **Kill**.
+  </Card>
+  <Card title="Kill" icon="skull-crossbones">
+    Immediately terminate the container. A confirmation dialog appears before the action is sent to prevent accidental kills.
+  </Card>
+</CardGroup>
+
+<Warning>Using **Kill** instead of **Stop** can corrupt server data because the process is terminated without a clean shutdown. Use it only when the server is unresponsive.</Warning>
+
+## File manager
+
+Navigate to the **Files** tab to browse the server's file system. From here you can:
+
+- Browse directories and open files in the Monaco editor
+- Create, rename, copy, move, and delete files or folders
+- Upload files by dragging them onto the file list or using the upload button
+- Download individual files or select multiple files for bulk operations
+- Search for files within the current directory
+
+The Monaco editor provides syntax highlighting for common formats (`.json`, `.yaml`, `.sh`, `.properties`, and more) and supports keyboard shortcuts such as `Ctrl+S` to save.
+
+<Note>The files available through the file manager are limited to the server's working directory. You cannot browse outside this root.</Note>
+
+## Resource monitoring
+
+The **Console** page includes live resource charts below the terminal. These charts update in real time and show:
+
+| Metric | Description |
+|--------|-------------|
+| CPU | CPU usage as a percentage of the allocated limit |
+| Memory | RAM usage versus the configured memory limit |
+| Disk | Disk space used within the server's allocation |
+| Network | Inbound and outbound traffic in bytes per second |
+
+## Activity log
+
+The **Activity** tab records actions taken on the server — file edits, power actions, backup creation, and more. Each entry shows the timestamp, the user who performed the action, and a description of what changed.
+
+This log is useful for auditing access and diagnosing unexpected state changes.
+
+## Startup variables
+
+The **Startup** tab lets you review and modify the environment variables defined by the server's egg. Variables marked as user-editable can be changed without admin access. After saving changes, restart the server for the new values to take effect.
+
+<Info>Variables that are not user-editable are visible but cannot be modified from the server page. An admin must change them from the admin panel.</Info>
+
+## Network and allocations
+
+The **Network** tab shows all IP:port allocations assigned to the server. The primary allocation is the address Wings uses to bind the server process. You can assign additional allocations from the pool of free allocations on the node.
+
+<Steps>
+  <Step title="Open Network tab">
+    Navigate to your server and click the **Network** tab in the sidebar.
+  </Step>
+  <Step title="Add an allocation">
+    Click **Create** and choose an available IP:port combination from the node's unassigned allocation pool.
+  </Step>
+  <Step title="Set the primary allocation">
+    Click the star icon next to any allocation to promote it to primary. The server must be restarted for the change to take effect.
+  </Step>
+  <Step title="Remove an allocation">
+    Click the trash icon next to any non-primary allocation to release it back to the pool.
+  </Step>
+</Steps>
+
+## Subusers
+
+Subusers allow you to grant other Calagopus accounts access to a specific server without giving them admin rights. Each subuser is assigned a set of granular permissions.
+
+<Steps>
+  <Step title="Open Subusers tab">
+    Navigate to your server and click the **Subusers** tab.
+  </Step>
+  <Step title="Add a subuser">
+    Click **Create** and enter the email address of the user you want to invite.
+  </Step>
+  <Step title="Set permissions">
+    Choose which actions the subuser is allowed to perform. Available permissions include console access, file management, backup creation, schedule management, and more.
+  </Step>
+  <Step title="Set ignored files">
+    Optionally specify file paths that the subuser cannot view or modify in the file manager.
+  </Step>
+  <Step title="Save">
+    Click **Create** to send the invitation. The user can access the server immediately if they already have a Calagopus account.
+  </Step>
+</Steps>
+
+<Tip>You can update a subuser's permissions or remove them at any time from the Subusers tab.</Tip>

@@ -1,0 +1,431 @@
+---
+title: 'Client API: client server management endpoints'
+description: 'All client-facing server endpoints: list, get, power, console, resources, WebSocket, files, backups, databases, schedules, subusers, and more.'
+keywords: ['api', 'client', 'servers', 'power', 'files', 'backups', 'schedules', 'subusers', 'calagopus']
+---
+
+The server endpoints under `/api/client/servers` give you access to every server your account can see. All endpoints require authentication. Subusers can access server endpoints for servers they have been granted access to, subject to their configured permissions.
+
+<Note>
+  The `{server}` path parameter accepts the server UUID or the short numeric ID.
+</Note>
+
+---
+
+## List servers
+
+Returns a paginated list of servers owned by the authenticated user.
+
+```
+GET /api/client/servers
+```
+
+<ParamField query="page" type="integer" default="1">
+  Page number.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="10">
+  Items per page (1–100).
+</ParamField>
+
+<ParamField query="search" type="string">
+  Filter by server name.
+</ParamField>
+
+<ParamField query="other" type="boolean" default="false">
+  When `true` and caller has admin `servers.read`, returns servers **not** owned by the caller.
+</ParamField>
+
+**Required permission:** `servers.read`
+
+<Tabs>
+  <Tab title="curl">
+    ```bash
+    curl https://your-panel.example.com/api/client/servers \
+      -H "Authorization: Bearer ptlc_YourKey"
+    ```
+  </Tab>
+  <Tab title="Response">
+    ```json
+    {
+      "servers": {
+        "data": [
+          {
+            "uuid": "abc12345-...",
+            "name": "Minecraft SMP",
+            "status": null,
+            "suspended": false
+          }
+        ],
+        "total": 1,
+        "per_page": 10,
+        "page": 1
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Get a server
+
+Returns a single server object.
+
+```
+GET /api/client/servers/{server}
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short ID.
+</ParamField>
+
+**Required permission:** `servers.view`
+
+---
+
+## Send a power action
+
+Starts, stops, restarts, or kills a server.
+
+```
+POST /api/client/servers/{server}/power
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short ID.
+</ParamField>
+
+<ParamField body="action" type="string" required>
+  One of `start`, `stop`, `restart`, or `kill`. Also accepted as `signal` for compatibility.
+</ParamField>
+
+**Required permission:** `control.start` / `control.stop` / `control.restart` (matched to the action)
+
+<Tabs>
+  <Tab title="curl">
+    ```bash
+    curl -X POST https://your-panel.example.com/api/client/servers/{server}/power \
+      -H "Authorization: Bearer ptlc_YourKey" \
+      -H "Content-Type: application/json" \
+      -d '{"action": "start"}'
+    ```
+  </Tab>
+  <Tab title="Response">
+    ```json
+    {}
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Send a console command
+
+Sends a command to the server console.
+
+```
+POST /api/client/servers/{server}/command
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short ID.
+</ParamField>
+
+<ParamField body="command" type="string" required>
+  The command string to send. Maximum 1024 characters.
+</ParamField>
+
+**Required permission:** `control.console`
+
+---
+
+## Get resource usage
+
+Returns current CPU, memory, disk, and network usage for the server.
+
+```
+GET /api/client/servers/{server}/resources
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short ID.
+</ParamField>
+
+<ResponseField name="resources" type="object">
+  Current resource usage returned from the Wings node.
+  <Expandable title="properties">
+    <ResponseField name="cpu_absolute" type="number">CPU usage as a percentage (absolute, not relative to limit).</ResponseField>
+    <ResponseField name="memory_bytes" type="integer">Current memory usage in bytes.</ResponseField>
+    <ResponseField name="disk_bytes" type="integer">Current disk usage in bytes.</ResponseField>
+    <ResponseField name="network" type="object">Network I/O counters (rx/tx bytes).</ResponseField>
+    <ResponseField name="state" type="string">Server process state: `running`, `offline`, `starting`, `stopping`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Get WebSocket token
+
+Returns a short-lived JWT and WebSocket URL for connecting to the server's real-time console. Tokens expire after 10 minutes.
+
+```
+GET /api/client/servers/{server}/websocket
+```
+
+<ParamField path="server" type="string" required>
+  Server UUID or short ID.
+</ParamField>
+
+<ResponseField name="token" type="string">
+  Signed JWT to use as authentication when connecting to the WebSocket.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  WebSocket URL (`ws://` or `wss://`) to connect to.
+</ResponseField>
+
+---
+
+## Files
+
+### List files
+
+```
+GET /api/client/servers/{server}/files/list
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField query="directory" type="string" default="/">Directory path to list.</ParamField>
+<ParamField query="sort" type="string" default="name_asc">Sorting mode for entries.</ParamField>
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page.</ParamField>
+
+**Required permission:** `files.read`
+
+### Read file contents
+
+Returns the raw text content of a file.
+
+```
+GET /api/client/servers/{server}/files/contents
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField query="file" type="string" required>Full path of the file to read.</ParamField>
+
+**Required permission:** `files.read-content`
+
+### Write file contents
+
+Writes the request body as the file's new content.
+
+```
+POST /api/client/servers/{server}/files/write
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField query="file" type="string" required>Full path of the file to write.</ParamField>
+
+The request body should be the raw file content as plain text (`Content-Type: text/plain`).
+
+**Required permission:** `files.create`
+
+### Delete files
+
+```
+POST /api/client/servers/{server}/files/delete
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField body="root" type="string" default="/">Root directory for the deletion operation.</ParamField>
+<ParamField body="files" type="string[]" required>List of file/directory names relative to `root` to delete.</ParamField>
+
+**Required permission:** `files.delete`
+
+### Other file operations
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| `GET` | `/files/download` | Get a signed download URL for a file. | `files.read` |
+| `POST` | `/files/upload` | Upload a file. | `files.create` |
+| `POST` | `/files/rename` | Rename files or directories. | `files.update` |
+| `POST` | `/files/copy` | Copy a file. | `files.create` |
+| `POST` | `/files/copy-many` | Copy multiple files. | `files.create` |
+| `POST` | `/files/compress` | Compress files into an archive. | `files.archive` |
+| `POST` | `/files/decompress` | Decompress an archive. | `files.archive` |
+| `POST` | `/files/create-directory` | Create a new directory. | `files.create` |
+| `POST` | `/files/chmod` | Change file permissions. | `files.update` |
+| `GET` | `/files/search` | Search for files by name. | `files.read` |
+
+---
+
+## Backups
+
+### List backups
+
+```
+GET /api/client/servers/{server}/backups
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page.</ParamField>
+<ParamField query="search" type="string">Filter by backup name.</ParamField>
+
+**Required permission:** `backups.read`
+
+### Create a backup
+
+```
+POST /api/client/servers/{server}/backups
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField body="name" type="string">Display name for the backup. Maximum 255 characters. Defaults to a timestamp-based name.</ParamField>
+<ParamField body="ignored_files" type="string[]">List of file paths to exclude from the backup.</ParamField>
+
+**Required permission:** `backups.create`
+
+Returns `417 Expectation Failed` if the server's backup limit has been reached.
+
+---
+
+## Databases
+
+### List databases
+
+```
+GET /api/client/servers/{server}/databases
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField query="include_password" type="boolean" default="false">Include the database password in the response. Requires `databases.read-password`.</ParamField>
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page.</ParamField>
+
+**Required permission:** `databases.read`
+
+### Create a database
+
+```
+POST /api/client/servers/{server}/databases
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField body="database_host_uuid" type="string (UUID)" required>UUID of the database host to create the database on.</ParamField>
+<ParamField body="name" type="string" required>Database name. 3–31 alphanumeric/underscore characters.</ParamField>
+
+**Required permission:** `databases.create`
+
+---
+
+## Schedules
+
+### List schedules
+
+```
+GET /api/client/servers/{server}/schedules
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page.</ParamField>
+
+**Required permission:** `schedules.read`
+
+### Create a schedule
+
+```
+POST /api/client/servers/{server}/schedules
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField body="name" type="string" required>Schedule name. 1–255 characters.</ParamField>
+<ParamField body="enabled" type="boolean" required>Whether the schedule is active.</ParamField>
+<ParamField body="triggers" type="array" required>Array of trigger definitions (cron-based).</ParamField>
+<ParamField body="condition" type="object" required>Pre-condition that must be met before the schedule runs.</ParamField>
+
+**Required permission:** `schedules.create`
+
+---
+
+## Subusers
+
+Subusers are other panel accounts that have been granted access to a server with a specific set of permissions.
+
+### List subusers
+
+```
+GET /api/client/servers/{server}/subusers
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page.</ParamField>
+
+**Required permission:** `subusers.read`
+
+### Add a subuser
+
+```
+POST /api/client/servers/{server}/subusers
+```
+
+<ParamField path="server" type="string" required>Server UUID or short ID.</ParamField>
+<ParamField body="email" type="string" required>Email address of the user to add.</ParamField>
+<ParamField body="permissions" type="string[]" required>List of server permission nodes to grant.</ParamField>
+<ParamField body="ignored_files" type="string[]">List of file paths to hide from this subuser.</ParamField>
+
+**Required permission:** `subusers.create`
+
+<Note>
+  Subusers cannot be granted permissions that the server owner or calling user does not themselves hold.
+</Note>
+
+---
+
+## Allocations
+
+### List allocations
+
+```
+GET /api/client/servers/{server}/allocations
+```
+
+Returns the IP/port allocations assigned to the server.
+
+**Required permission:** `allocations.read`
+
+---
+
+## Startup
+
+### Get startup variables
+
+```
+GET /api/client/servers/{server}/startup
+```
+
+Returns the egg startup variables and their current values for this server.
+
+**Required permission:** `startup.read`
+
+### Update a startup variable
+
+```
+PUT /api/client/servers/{server}/startup/variables
+```
+
+Updates the value of a single egg variable.
+
+**Required permission:** `startup.update`
+
+---
+
+## Settings
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/{server}/settings` | Get server settings (name, description, image). |
+| `PATCH` | `/{server}/settings` | Update server name or description. |

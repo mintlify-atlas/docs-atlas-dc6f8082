@@ -1,0 +1,106 @@
+---
+title: "Nodes and locations in Calagopus Panel"
+description: "Set up locations and Wings nodes in Calagopus: add nodes, get the auto-config token, manage allocations, and understand the Wings proxy feature."
+keywords: ['calagopus', 'nodes', 'locations', 'wings', 'allocations', 'wings proxy', 'FQDN']
+---
+
+Nodes are the Wings daemons that actually run your game servers. Locations are logical labels used to group nodes — for example, by data center region. Every node belongs to exactly one location, and every server runs on exactly one node.
+
+## Locations
+
+Locations provide a way to organize nodes by geography or purpose. When you create a server through the admin panel, you can filter the node list by location to place the server in the right region.
+
+<Steps>
+  <Step title="Open Locations">
+    In the admin panel, navigate to **Locations**.
+  </Step>
+  <Step title="Create a location">
+    Click **Create** and enter a short name such as `us-east` or `eu-west`. Add an optional description for clarity.
+  </Step>
+  <Step title="Save">
+    Click **Save**. The location is now available when creating or editing nodes.
+  </Step>
+</Steps>
+
+You can view the nodes assigned to a location from the location's detail page under the **Nodes** tab.
+
+## Nodes
+
+A node represents a single Wings daemon installation. Calagopus communicates with Wings over the node's configured URL to start, stop, and transfer servers.
+
+### Adding a node
+
+<Steps>
+  <Step title="Open Nodes">
+    In the admin panel, navigate to **Nodes** and click **Create**.
+  </Step>
+  <Step title="Fill in basic details">
+    Enter a name for the node and select the location it belongs to.
+  </Step>
+  <Step title="Set the URL">
+    Enter the internal URL Calagopus uses to reach Wings (for example, `https://node1.example.com:8080`). This URL is used for API communication and is not exposed to end users.
+  </Step>
+  <Step title="Set the public URL (optional)">
+    If Wings is behind a reverse proxy or uses a different address for WebSocket connections and file downloads, enter that address in **Public URL**. Leave this blank to use the same URL as the internal URL.
+  </Step>
+  <Step title="Configure SFTP">
+    Enter the SFTP host and port. The default SFTP port is `2022`.
+  </Step>
+  <Step title="Set resource limits">
+    Enter the total **Memory** and **Disk** available on the node. These values are used to calculate how much capacity remains when assigning resource limits to new servers.
+  </Step>
+  <Step title="Save">
+    Click **Save**. The node is created and you are taken to its detail page.
+  </Step>
+</Steps>
+
+### Node configuration
+
+After creating a node, navigate to its **Configuration** tab to get the Wings configuration. This tab shows a generated YAML snippet that you paste into `/etc/pterodactyl/config.yml` on the Wings host, or you can copy the one-liner command that does this automatically.
+
+The page also exposes a **Live Configuration** editor that connects directly to the running Wings daemon and lets you view and save its current `config.yml` without leaving the browser.
+
+<Warning>Saving an invalid configuration file from the Live Configuration editor can prevent Wings from starting. Always verify YAML syntax before saving.</Warning>
+
+### Resetting the auth token
+
+If a node's authentication token is compromised or you need to re-pair it, go to the node's **General** tab and click **Reset Token**. Calagopus generates a new token and displays the updated configuration. You must update Wings with the new token before it can reconnect.
+
+### Deployment and maintenance modes
+
+Two toggles on the node's **General** tab control availability:
+
+| Toggle | Effect |
+|--------|--------|
+| **Deployment Enabled** | When off, new servers cannot be assigned to this node. Existing servers are unaffected. |
+| **Maintenance Enabled** | Flags the node as under maintenance. Useful for scheduled downtime. |
+
+## Wings proxy
+
+When **Public URL** is left blank on a node, Calagopus can optionally route WebSocket connections and file downloads through the panel itself using the Wings Proxy feature. To enable this, click the globe icon next to the **Public URL** field on the node's **General** tab. This fills in a proxy URL of the form `https://your-panel/wings-proxy/<node-uuid>`.
+
+<Info>The Wings Proxy is useful when Wings nodes are on a private network that end users cannot reach directly. All traffic is forwarded through the panel, which does add latency.</Info>
+
+## Allocations
+
+An allocation is a single IP:port combination that can be assigned to a server as its network binding. Allocations are managed per node.
+
+<Steps>
+  <Step title="Open the Allocations tab">
+    Navigate to **Nodes**, open the node, and click the **Allocations** tab.
+  </Step>
+  <Step title="Create allocations">
+    Click **Create** and enter an IP address along with one or more ports or port ranges (for example, `25565` or `25565-25575`). Each combination becomes a separate allocation entry.
+  </Step>
+  <Step title="Assign to servers">
+    Allocations are available immediately and can be assigned to servers from the server's **Network** tab or during server creation.
+  </Step>
+</Steps>
+
+You can select multiple allocations using click and Shift+click, or `Ctrl+A` to select all, and then delete them in bulk using the action bar that appears.
+
+## Node statistics and logs
+
+The **Statistics** tab shows live node resource usage — CPU, memory, and disk — pulled directly from the Wings daemon.
+
+The **Logs** tab streams Wings log output so you can diagnose daemon-level issues without SSH access.

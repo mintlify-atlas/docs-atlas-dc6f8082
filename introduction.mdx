@@ -1,0 +1,66 @@
+---
+title: "Introduction to Calagopus Panel"
+description: "Calagopus is a Rust-powered game server panel, Wings-compatible and built as a high-performance alternative to Pterodactyl with a modern React UI."
+keywords: ['calagopus', 'pterodactyl alternative', 'game server panel', 'wings', 'rust', 'react']
+---
+
+Calagopus is a self-hosted game server management panel written in Rust and React. It is a direct alternative to Pterodactyl Panel, fully compatible with existing Wings nodes, and designed to eliminate the performance and flexibility limitations of the original PHP-based panel.
+
+## What Calagopus is
+
+The Calagopus backend is built with [Rust](https://www.rust-lang.org/) and the [Axum](https://github.com/tokio-rs/axum) web framework. The frontend uses React 19, Mantine, and Tailwind. Both are distributed as a single Docker image.
+
+Because Wings compatibility is preserved, you do not need to reinstall or reconfigure any Wings daemons when switching from Pterodactyl. All existing Wings nodes, eggs, and server allocations carry over.
+
+## How Calagopus differs from Pterodactyl
+
+<CardGroup cols={2}>
+  <Card title="Rust backend" icon="bolt">
+    Axum handles thousands of concurrent connections with a fraction of the memory that a Laravel/PHP process requires.
+  </Card>
+  <Card title="React + Mantine UI" icon="display">
+    The panel interface loads fast, updates without full-page reloads, and ships with a consistent component system.
+  </Card>
+  <Card title="Extension system" icon="puzzle-piece" href="/extensions/overview">
+    Auth providers, frontend plugins, and backend modules can be loaded without touching core panel code.
+  </Card>
+  <Card title="Role-based access" icon="shield-halved" href="/features/users-and-roles">
+    Granular admin roles let you delegate specific tasks — node management, user management, and more — without granting full admin access.
+  </Card>
+  <Card title="OAuth2 and passkeys" icon="key" href="/administration/oauth-providers">
+    First-class OAuth2 login and passkey support is built in; no plugins or external services are required.
+  </Card>
+  <Card title="Performance caching" icon="database">
+    Optional in-memory and Redis decryption caches reduce database round-trips on high-traffic panels.
+  </Card>
+</CardGroup>
+
+## Minimum requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| Container runtime | Docker with Compose |
+| Database | PostgreSQL (bundled in the official Compose file) |
+| Cache | Valkey or Redis (bundled in the official Compose file) |
+| Wings node | Any Wings-compatible daemon; at least one node required to create servers |
+
+<Note>
+  The official `compose.yml` bundles PostgreSQL and Valkey alongside the panel. For small installations you do not need to provision these separately.
+</Note>
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quick start" icon="rocket" href="/quickstart">
+    Deploy Calagopus with Docker Compose and create your first admin account in about five minutes.
+  </Card>
+  <Card title="Full installation" icon="server" href="/installation/docker">
+    Step-by-step guide covering Docker setup, reverse proxy configuration, and post-install hardening.
+  </Card>
+  <Card title="Migrate from Pterodactyl" icon="arrows-rotate" href="/upgrade-from-pterodactyl">
+    Import users, servers, nodes, eggs, and backups from an existing Pterodactyl installation.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/overview">
+    Explore the REST API for managing servers, users, nodes, and more programmatically.
+  </Card>
+</CardGroup>

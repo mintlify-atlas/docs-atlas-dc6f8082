@@ -1,0 +1,109 @@
+---
+title: 'Calagopus API authentication with keys and sessions'
+description: 'Authenticate Calagopus API requests using API keys or session cookies. Covers key creation, permission scopes, allowed IP restrictions, and common auth errors.'
+keywords: ['api', 'authentication', 'api key', 'bearer token', 'session', 'calagopus']
+---
+
+The Calagopus API supports two authentication methods: session cookies (used automatically by the browser) and API keys (for programmatic access from scripts, CLI tools, or integrations).
+
+## Session cookies
+
+When you log in through the panel UI, the server sets a signed session cookie. All subsequent requests made from the browser include this cookie automatically. You do not need to manage session cookies manually unless you are building a browser-based integration.
+
+<Note>
+  Session cookies are intended for interactive browser sessions. For automated or programmatic access, create an API key instead.
+</Note>
+
+## API keys
+
+API keys let you authenticate without a browser session. You pass the key in the `Authorization` header as a Bearer token.
+
+```bash
+curl https://your-panel.example.com/api/client/servers \
+  -H "Authorization: Bearer ptlc_YourApiKeyHere"
+```
+
+The token must be exactly 48 characters (the `Bearer ` prefix is stripped, leaving a 48-character key).
+
+### Creating an API key
+
+<Steps>
+  <Step title="Open your account settings">
+    Log in to the panel and navigate to **Account → API Keys**.
+  </Step>
+  <Step title="Create a new key">
+    Click **Create API Key** and enter a name for the key. Optionally restrict the key to specific IP addresses and configure the permission scopes.
+  </Step>
+  <Step title="Copy the key">
+    The full key value is shown only once after creation. Copy it and store it securely.
+  </Step>
+</Steps>
+
+### API key scopes
+
+Each API key carries three separate sets of permissions. A key can only grant permissions that your own account already holds — you cannot escalate privileges through a key.
+
+<ParamField body="user_permissions" type="string[]">
+  Controls access to account-level operations such as `account.infos`, `api-keys.read`, `api-keys.create`, `servers.read`, and `servers.view`.
+</ParamField>
+
+<ParamField body="admin_permissions" type="string[]">
+  Controls access to admin-level operations such as `users.read`, `servers.create`, `nodes.delete`, and `nests.update`. Only relevant if your account has admin rights.
+</ParamField>
+
+<ParamField body="server_permissions" type="string[]">
+  Controls access to individual server operations such as `control.start`, `files.read`, `backups.create`, and `databases.read`.
+</ParamField>
+
+<ParamField body="allowed_ips" type="string[]">
+  Optional list of IP addresses or CIDR ranges allowed to use this key. If empty, requests from any IP are accepted.
+</ParamField>
+
+<ParamField body="expires" type="string (ISO 8601 datetime)">
+  Optional expiry timestamp. The key becomes invalid after this time.
+</ParamField>
+
+### Example: creating an API key via the API
+
+```bash
+curl -X POST https://your-panel.example.com/api/client/account/api-keys \
+  -H "Authorization: Bearer ptlc_ExistingKey" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "deploy-bot",
+    "allowed_ips": [],
+    "user_permissions": ["servers.read"],
+    "admin_permissions": [],
+    "server_permissions": ["control.start", "control.stop"]
+  }'
+```
+
+The response includes the full key value in the `key` field. This is the only time the full key is returned.
+
+```json
+{
+  "api_key": {
+    "uuid": "...",
+    "name": "deploy-bot",
+    "key_start": "ptlc_dep",
+    "created": "2026-01-01T00:00:00Z"
+  },
+  "key": "ptlc_YourNewKeyHere"
+}
+```
+
+## Common authentication errors
+
+| Status | Error message | Cause |
+|--------|---------------|-------|
+| `401` | `missing authorization` | No `Authorization` header or session cookie was sent. |
+| `401` | `invalid authorization header` | The `Authorization` header is present but has the wrong length. |
+| `401` | `invalid api key` | The key does not match any active key in the database. |
+| `401` | `invalid session` | The session cookie is invalid or has expired. |
+| `403` | `ip address not allowed for this api key` | The request came from an IP not in the key's `allowed_ips` list. |
+| `403` | `two-factor authentication required` | The account requires 2FA but it is not enabled. |
+| `401` | `unauthorized` | Admin API: your account does not have any admin permissions. |
+
+<Warning>
+  Never commit API keys to source control or log them to standard output. If a key is compromised, delete it immediately from **Account → API Keys**.
+</Warning>

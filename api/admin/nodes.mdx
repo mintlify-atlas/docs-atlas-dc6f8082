@@ -1,0 +1,299 @@
+---
+title: 'Admin API: node and allocation management endpoints'
+description: 'Admin endpoints to list, create, update, and delete nodes, manage allocations, retrieve node configuration, and reset daemon tokens.'
+keywords: ['api', 'admin', 'nodes', 'allocations', 'wings', 'daemon', 'calagopus']
+---
+
+Nodes are the Wings daemon instances that host servers. The endpoints under `/api/admin/nodes` let you manage nodes, their allocations, and connection settings. The panel automatically generates the Wings configuration for each node.
+
+---
+
+## List nodes
+
+Returns a paginated list of all nodes.
+
+```
+GET /api/admin/nodes
+```
+
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page (1–100).</ParamField>
+<ParamField query="search" type="string">Filter by node name.</ParamField>
+
+**Required admin permission:** `nodes.read`
+
+<Tabs>
+  <Tab title="curl">
+    ```bash
+    curl https://your-panel.example.com/api/admin/nodes \
+      -H "Authorization: Bearer ptlc_YourAdminKey"
+    ```
+  </Tab>
+  <Tab title="Response">
+    ```json
+    {
+      "nodes": {
+        "data": [
+          {
+            "uuid": "abc12345-...",
+            "name": "US East 1",
+            "deployment_enabled": true,
+            "maintenance_enabled": false,
+            "memory": 32768,
+            "disk": 524288,
+            "sftp_port": 2022,
+            "created": "2026-01-01T00:00:00Z"
+          }
+        ],
+        "total": 1,
+        "per_page": 10,
+        "page": 1
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Get a node
+
+Returns a single node by UUID.
+
+```
+GET /api/admin/nodes/{node}
+```
+
+<ParamField path="node" type="string (UUID)" required>
+  The node UUID.
+</ParamField>
+
+**Required admin permission:** `nodes.read`
+
+---
+
+## Create a node
+
+Registers a new Wings node with the panel.
+
+```
+POST /api/admin/nodes
+```
+
+<ParamField body="location_uuid" type="string (UUID)" required>
+  UUID of the location this node belongs to.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Node display name. Must be unique.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional description.
+</ParamField>
+
+<ParamField body="url" type="string" required>
+  Internal URL the panel uses to communicate with Wings (e.g. `https://10.0.0.5:8080`).
+</ParamField>
+
+<ParamField body="public_url" type="string">
+  Optional public-facing URL for WebSocket and SFTP connections. Falls back to `url` if not set.
+</ParamField>
+
+<ParamField body="sftp_host" type="string">
+  Optional SFTP hostname. Falls back to the host in `url` if not set.
+</ParamField>
+
+<ParamField body="sftp_port" type="integer" required>
+  SFTP port (default `2022`).
+</ParamField>
+
+<ParamField body="memory" type="integer" required>
+  Total allocatable memory in MiB.
+</ParamField>
+
+<ParamField body="disk" type="integer" required>
+  Total allocatable disk in MiB.
+</ParamField>
+
+<ParamField body="deployment_enabled" type="boolean" default="true">
+  Allow the panel to automatically deploy new servers to this node.
+</ParamField>
+
+<ParamField body="maintenance_enabled" type="boolean" default="false">
+  Put the node in maintenance mode (existing servers continue running, no new deployments).
+</ParamField>
+
+<ParamField body="backup_configuration_uuid" type="string (UUID)">
+  Optional backup configuration for node-level backups.
+</ParamField>
+
+**Required admin permission:** `nodes.create`
+
+Returns `409 Conflict` if a node with the same name already exists.
+
+---
+
+## Update a node
+
+Updates one or more node fields. All body fields are optional.
+
+```
+PATCH /api/admin/nodes/{node}
+```
+
+<ParamField path="node" type="string (UUID)" required>
+  The node UUID.
+</ParamField>
+
+The request body accepts the same fields as the create endpoint.
+
+**Required admin permission:** `nodes.update`
+
+---
+
+## Delete a node
+
+Removes a node from the panel.
+
+```
+DELETE /api/admin/nodes/{node}
+```
+
+<ParamField path="node" type="string (UUID)" required>
+  The node UUID.
+</ParamField>
+
+**Required admin permission:** `nodes.delete`
+
+<Warning>
+  Deletion fails with `400 Bad Request` if any servers are deployed on the node. Delete or transfer all servers first.
+</Warning>
+
+---
+
+## Get node configuration
+
+Returns the Wings daemon configuration file content for this node. Use this to bootstrap a Wings instance.
+
+```
+GET /api/admin/nodes/{node}/config
+```
+
+<ParamField path="node" type="string (UUID)" required>
+  The node UUID.
+</ParamField>
+
+**Required admin permission:** `nodes.read`
+
+---
+
+## Reset daemon token
+
+Generates a new authentication token for the Wings daemon. The old token is immediately invalidated.
+
+```
+POST /api/admin/nodes/{node}/reset-token
+```
+
+<ParamField path="node" type="string (UUID)" required>
+  The node UUID.
+</ParamField>
+
+**Required admin permission:** `nodes.update`
+
+<Warning>
+  After resetting the token, you must update the Wings configuration on the node and restart the daemon or it will lose contact with the panel.
+</Warning>
+
+---
+
+## Allocations
+
+Allocations are IP/port combinations that can be assigned to servers as their primary or additional network endpoints.
+
+### List allocations for a node
+
+```
+GET /api/admin/nodes/{node}/allocations
+```
+
+<ParamField path="node" type="string (UUID)" required>Node UUID.</ParamField>
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page.</ParamField>
+
+**Required admin permission:** `nodes.read`
+
+### Create allocations
+
+```
+POST /api/admin/nodes/{node}/allocations
+```
+
+<ParamField path="node" type="string (UUID)" required>Node UUID.</ParamField>
+<ParamField body="ip" type="string" required>IP address for the allocations.</ParamField>
+<ParamField body="ports" type="string[]" required>List of ports or port ranges (e.g. `["25565", "25566-25570"]`).</ParamField>
+<ParamField body="alias" type="string">Optional alias displayed instead of the IP.</ParamField>
+
+**Required admin permission:** `nodes.update`
+
+---
+
+## Node object fields
+
+<ResponseField name="uuid" type="string">
+  Node UUID.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Display name.
+</ResponseField>
+
+<ResponseField name="description" type="string | null">
+  Optional description.
+</ResponseField>
+
+<ResponseField name="location" type="object">
+  The location this node belongs to.
+  <Expandable title="location properties">
+    <ResponseField name="uuid" type="string">Location UUID.</ResponseField>
+    <ResponseField name="short" type="string">Short location code.</ResponseField>
+    <ResponseField name="long" type="string">Long location description.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="deployment_enabled" type="boolean">
+  Whether the node accepts automatic deployments.
+</ResponseField>
+
+<ResponseField name="maintenance_enabled" type="boolean">
+  Whether the node is in maintenance mode.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Internal Wings daemon URL.
+</ResponseField>
+
+<ResponseField name="public_url" type="string | null">
+  Public URL for WebSocket and SFTP.
+</ResponseField>
+
+<ResponseField name="sftp_host" type="string | null">
+  SFTP hostname.
+</ResponseField>
+
+<ResponseField name="sftp_port" type="integer">
+  SFTP port.
+</ResponseField>
+
+<ResponseField name="memory" type="integer">
+  Total allocatable memory in MiB.
+</ResponseField>
+
+<ResponseField name="disk" type="integer">
+  Total allocatable disk in MiB.
+</ResponseField>
+
+<ResponseField name="created" type="string">
+  ISO 8601 creation timestamp.
+</ResponseField>

@@ -1,0 +1,328 @@
+---
+title: "Frontend extensions"
+description: "Build and install frontend extensions that add pages, modify UI components, register custom routes, and apply themes to the Calagopus panel."
+keywords: ['calagopus', 'frontend extension', 'plugin', 'ui extension', 'custom theme', 'mantine', 'react']
+---
+
+Frontend extensions let you change how the Calagopus panel looks and behaves in the browser. A single extension can add entirely new pages, inject components into existing pages, register routes in any section of the panel, override Mantine theme tokens, and provide custom translation strings — all without modifying the panel's source code.
+
+## How frontend extensions are loaded
+
+When the panel starts, it compiles each uploaded extension's frontend code alongside the core panel bundle. At runtime, every loaded extension is instantiated as an `Extension` class and passed to a shared `ExtensionContext`. The context calls `initialize` on each extension in order, then merges all `ExtensionRegistry` instances together. From that point forward, the panel reads route and component registrations from the merged registry.
+
+```
+ExtensionContext
+  └─ for each Extension:
+       extension.initialize(ctx)         // register routes, pages, etc.
+       extension.initializeMantineTheme(ctx) // return theme overrides
+```
+
+If an extension throws during `initialize` or `initializeMantineTheme`, the error is logged to the browser console and the remaining extensions continue loading.
+
+## The Extension class
+
+Your extension must export a default class that extends `Extension` from the `shared` package.
+
+```typescript
+import { Extension, ExtensionContext } from 'shared';
+import type { MantineThemeOverride } from '@mantine/core';
+
+export default class MyExtension extends Extension {
+  // The package name must match Metadata.toml
+  public packageName = 'com.acme.my-extension';
+
+  // Optional: a React component shown in the extension's card
+  // on the Admin → Extensions page
+  public cardComponent: React.FC | null = null;
+
+  // Optional: a React component shown at
+  // /admin/extensions/<packageName>
+  public cardConfigurationPage: React.FC | null = null;
+
+  public initialize(ctx: ExtensionContext): void {
+    // register routes, pages, and components here
+  }
+
+  public initializeMantineTheme(ctx: ExtensionContext): MantineThemeOverride {
+    return {};
+  }
+}
+```
+
+The `frontend/src/index.ts` (or `.tsx`) file of your extension archive must contain `export default` — the panel's validator checks for this before accepting the upload.
+
+## The ExtensionRegistry
+
+Inside `initialize`, you use `ctx.extensionRegistry` to register all UI contributions. The registry is organized into four top-level namespaces, each with typed entry methods:
+
+| Namespace | Purpose |
+|-----------|---------|
+| `pages` | Add or modify components on specific panel pages |
+| `routes` | Register new URL routes in any section |
+| `elements` | Hook into shared elements such as the Monaco editor |
+| `global` | Inject components that render on every page |
+
+### Registering routes
+
+The `routes` sub-registry exposes methods for each route group:
+
+```typescript
+ctx.extensionRegistry.enterRoutes(routes => {
+  // Add a new page to the admin section
+  routes.addAdminRoute({
+    path: '/admin/my-extension',
+    name: 'My Extension',
+    element: MyAdminPage,
+    permission: 'my_extension.view', // optional admin permission gate
+  });
+
+  // Add a page to each server's sidebar
+  routes.addServerRoute({
+    path: '/server/:uuid/my-tab',
+    name: 'My Tab',
+    icon: faPlugin,
+    element: MyServerPage,
+  });
+
+  // Add a global route (no sidebar entry)
+  routes.addGlobalRoute({
+    path: '/my-global-page',
+    element: MyGlobalPage,
+  });
+});
+```
+
+Route interceptors let you mutate the existing route list rather than appending to it:
+
+```typescript
+routes.addAdminRouteInterceptor(items => {
+  // items is the mutable array of existing admin routes
+  items.forEach(route => {
+    if (route.path === '/admin/servers') {
+      // modify existing route
+    }
+  });
+});
+```
+
+### Injecting components into pages
+
+The `pages` namespace gives you fine-grained access to individual panel pages. Server pages, admin pages, and dashboard pages are each represented by a typed registry class.
+
+**Server pages example** — injecting a stat card into the console:
+
+```typescript
+ctx.extensionRegistry.enterPages(pages => {
+  pages.enterServer(server => {
+    server.enterConsole(console => {
+      console.addStatCard(MyStatCard);
+      console.addStatBlock(MyStatBlock);
+      console.addFeature({ component: MyFeatureComponent });
+    });
+  });
+});
+```
+
+**Admin pages example** — appending a component after the admin server list:
+
+```typescript
+ctx.extensionRegistry.enterPages(pages => {
+  pages.enterAdmin(admin => {
+    admin.appendComponent(MyAdminComponent);
+  });
+});
+```
+
+**Global pages** — render a component on every page:
+
+```typescript
+ctx.extensionRegistry.enterPages(pages => {
+  pages.enterGlobal(global => {
+    global.appendComponent(MyGlobalBanner);
+  });
+});
+```
+
+Available server page registries: `console`, `files`, `databases`, `subusers`, `backups`, `network`, `startup`, `mounts`, `settings`, `activity`.
+
+### Server console extensions
+
+The console registry offers the most injection points. In addition to stat cards, you can inject components next to the power buttons, in the terminal header, and in the terminal input row:
+
+```typescript
+server.enterConsole(console => {
+  console.addStatCard(ResourceWidget);
+  console.addStatBlock(NetworkBlock);
+  console.addTerminalInputRowComponent(QuickCommandButton);
+  console.enterPowerButtonComponents(list => {
+    list.addComponent(ExtraButton);
+  });
+  console.enterTerminalHeaderRightComponents(list => {
+    list.addComponent(HeaderBadge);
+  });
+});
+```
+
+### File manager extensions
+
+The file manager registry lets you add toolbar buttons, context menu items, custom file icons, and entirely new editor actions:
+
+```typescript
+pages.enterServer(server => {
+  server.enterFiles(files => {
+    files.enterFileToolbar(toolbar => {
+      toolbar.addComponent(MyToolbarButton);
+    });
+    files.enterFileContextMenu(menu => {
+      menu.addItemInterceptor((items, { file }) => {
+        items.push({
+          label: 'Process with my extension',
+          onClick: () => processFile(file),
+        });
+      });
+    });
+    files.addFileEditorAction({
+      name: 'my-viewer',
+      title: (file) => `View ${file} with My Extension`,
+      contentType: 'string',
+      header: {},
+      content: MyEditorComponent,
+    });
+  });
+});
+```
+
+### Theming
+
+Return a partial `MantineThemeOverride` from `initializeMantineTheme` to override any Mantine design tokens. Multiple extension theme overrides are deep-merged in load order:
+
+```typescript
+public initializeMantineTheme(ctx: ExtensionContext): MantineThemeOverride {
+  return {
+    primaryColor: 'violet',
+    fontFamily: 'Inter, sans-serif',
+    components: {
+      Button: {
+        defaultProps: { radius: 'xl' },
+      },
+    },
+  };
+}
+```
+
+### Translations
+
+Use `defineTranslations` to add i18n strings scoped to your extension namespace:
+
+```typescript
+import { defineTranslations } from 'shared';
+
+export const t = defineTranslations({
+  items: {},
+  translations: {
+    myExtension: {
+      title: 'My Extension',
+      description: 'This is my extension description.',
+    },
+  },
+});
+
+// Inside a component:
+const { t: translate } = t.useTranslations();
+translate('myExtension.title', {});
+```
+
+### Inter-extension calls
+
+Extensions can call into each other at runtime using `ctx.call`. The call iterates through all loaded extensions until one returns a non-skip value:
+
+```typescript
+// Calling another extension
+const result = ctx.call('com_acme_myauth_get_user_info', { userId: 123 });
+
+// Handling a call in your extension
+public processCall(ctx: ExtensionContext, name: string, args: object): unknown {
+  if (name === 'com_acme_myextension_do_something') {
+    return this.doSomething(args);
+  }
+  return ctx.skip(); // not handled; continue to next extension
+}
+```
+
+Always return `ctx.skip()` for calls that do not belong to your extension.
+
+## Extension archive structure
+
+A valid extension archive (`.c7s.zip`) must contain:
+
+```
+MyExtension.c7s.zip
+├── Metadata.toml          # package_name, name, panel_version
+├── backend/
+│   ├── Cargo.toml
+│   └── src/
+│       └── lib.rs         # must contain `pub struct ExtensionStruct`
+├── frontend/
+│   ├── package.json
+│   └── src/
+│       └── index.ts       # must contain `export default`
+└── migrations/            # optional
+    └── 20260125115245_init/
+        ├── up.sql
+        └── down.sql
+```
+
+`Metadata.toml` format:
+
+```toml
+package_name = "com.acme.my-extension"
+name         = "My Extension"
+panel_version = ">=1.0.0"
+```
+
+## Installing a frontend extension
+
+<Steps>
+  <Step title="Check the heavy image requirement">
+    Frontend extension installation uses the same upload and rebuild pipeline as backend extensions. You must use `ghcr.io/calagopus/panel:heavy`.
+  </Step>
+  <Step title="Upload the archive">
+    Navigate to **Admin → Extensions** and upload the `.c7s.zip` file. The panel validates that `frontend/src/index.ts` (or `.tsx`) contains `export default`.
+  </Step>
+  <Step title="Rebuild">
+    Trigger a rebuild from the Extensions panel. The frontend bundle is recompiled with the extension included.
+  </Step>
+  <Step title="Verify in the browser">
+    After the rebuild, reload the panel. Your extension's routes, components, and theme overrides should be active. Open the browser console to check for any `Error while running extension initialize()` messages.
+  </Step>
+</Steps>
+
+## Configuration UI
+
+If your extension needs admin-configurable settings, set `cardConfigurationPage` to a React component. This component is rendered at `/admin/extensions/<packageName>` and linked from the extension's card on the Extensions overview page. Use it to display and save settings that your backend extension exposes through its settings deserializer.
+
+```typescript
+import MyConfigPage from './ConfigPage.tsx';
+
+public cardConfigurationPage = MyConfigPage;
+```
+
+## Utility: hookable components and functions
+
+The `shared` package exports `makeComponentHookable` and `makeFunctionHookable` for wrapping existing panel components or functions so extensions can intercept their props or return values without replacing them entirely.
+
+```typescript
+import { makeComponentHookable } from 'shared';
+
+const HookableButton = makeComponentHookable(OriginalButton);
+
+HookableButton.addPropsInterceptor(props => ({
+  ...props,
+  color: 'green',
+}));
+```
+
+## Related
+
+- [Extensions overview](/extensions/overview) — the heavy image requirement, archive format, and rebuild process
+- [Auth provider extensions](/extensions/auth-providers) — backend extension lifecycle and settings API

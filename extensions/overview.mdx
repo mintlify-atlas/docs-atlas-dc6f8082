@@ -1,0 +1,122 @@
+---
+title: "Extensions overview"
+description: "Learn how Calagopus extensions work: install backend and frontend plugins, manage the rebuild pipeline, and understand the heavy Docker image requirement."
+keywords: ['calagopus', 'extensions', 'plugins', 'backend extensions', 'frontend extensions', 'heavy image']
+---
+
+The Calagopus extension system lets you expand the panel beyond its built-in capabilities without modifying core code. Extensions come in two forms: **backend extensions**, which run server-side and can add routes, background tasks, database migrations, permissions, and auth providers; and **frontend extensions**, which run in the browser and can add pages, UI components, custom themes, and new routes to the panel.
+
+## Extension types
+
+<CardGroup cols={2}>
+  <Card title="Auth providers" icon="key" href="/extensions/auth-providers">
+    Replace or supplement the built-in username/password login with a custom authentication backend.
+  </Card>
+  <Card title="Frontend extensions" icon="puzzle-piece" href="/extensions/frontend-extensions">
+    Add pages, modify UI components, inject custom themes, and register new routes in the panel interface.
+  </Card>
+</CardGroup>
+
+Every Calagopus extension is a single `.c7s.zip` archive that bundles a compiled Rust crate (backend), a TypeScript module (frontend), and optional database migrations. The archive is validated on upload and rejected if any required file is missing or malformed.
+
+## Requirements
+
+Extension management is only available in the **heavy** Docker image (`ghcr.io/calagopus/panel:heavy`). The standard image does not include the build toolchain. If you try to upload or remove an extension while running the standard image, the API returns `501 Not Implemented`.
+
+<Warning>
+  You must use `ghcr.io/calagopus/panel:heavy` to install or remove extensions. The extension management endpoints are not available on the standard image.
+</Warning>
+
+The heavy image mounts an `/app/extensions` directory where uploaded archives are stored. Map this directory to a persistent volume in your `compose.yml` so extensions survive container restarts.
+
+```yaml compose.yml
+volumes:
+  - ./build/extensions:/app/extensions
+  - ./build/extension-migrations:/app/repo/database/extension-migrations
+```
+
+## How extensions are loaded
+
+When the panel starts, it reads every `.c7s.zip` file from `/app/extensions`, validates the archive, extracts the backend and frontend code, and compiles the backend Rust crate into the running binary. This process happens at container build time — not at runtime — which means the container image is rebuilt each time you add or remove an extension.
+
+The build process is asynchronous. After uploading a new extension you must trigger a rebuild from **Admin → Extensions → Rebuild** before the extension takes effect.
+
+<Info>
+  After uploading or removing an extension, the panel needs a rebuild. Monitor progress in the build log viewer at **Admin → Extensions**.
+</Info>
+
+## Managing extensions
+
+Navigate to **Admin → Extensions** to see all installed extensions. The panel shows each extension's package name, version, description, and authors.
+
+### Installing an extension
+
+<Steps>
+  <Step title="Obtain the extension archive">
+    Download or obtain the `.c7s.zip` extension archive from the extension author.
+  </Step>
+  <Step title="Check panel version compatibility">
+    The archive's `Metadata.toml` declares a `panel_version` semver requirement. The panel rejects archives that do not match the running panel version.
+  </Step>
+  <Step title="Upload the archive">
+    In **Admin → Extensions**, click **Upload extension** and select the `.c7s.zip` file. The panel validates the archive and registers it as a pending extension.
+  </Step>
+  <Step title="Trigger a rebuild">
+    Click **Rebuild** to start the container rebuild process. Watch the build log to confirm the extension compiled successfully.
+  </Step>
+</Steps>
+
+### Removing an extension
+
+<Steps>
+  <Step title="Open extension details">
+    In **Admin → Extensions**, locate the extension you want to remove.
+  </Step>
+  <Step title="Choose migration behavior">
+    You can opt to roll back the extension's database migrations before removal. Enable **Remove migrations** if you want the database changes undone; leave it disabled if you want to keep the data.
+  </Step>
+  <Step title="Delete and rebuild">
+    Confirm deletion. The archive is removed from `/app/extensions`. Trigger a rebuild to apply the change.
+  </Step>
+</Steps>
+
+### Checking rebuild status
+
+The panel exposes a status endpoint that reports whether a rebuild is in progress and which extensions are pending. You can also view the raw build log from **Admin → Extensions → Build log**.
+
+<Note>
+  Only one rebuild can run at a time. If a rebuild is already in progress, subsequent rebuild requests return a `409 Conflict` error until the current build finishes.
+</Note>
+
+## Extension package naming
+
+Extension package names follow a three-segment reverse-domain scheme: `tld.author.identifier`. For example, `com.acme.my-auth`. The segments have these constraints:
+
+| Segment | Characters | Length |
+|---------|-----------|--------|
+| TLD | Lowercase ASCII letters only | 2–6 characters |
+| Author | Lowercase ASCII letters, digits, hyphens | 3–30 characters |
+| Identifier | Lowercase ASCII letters, digits, hyphens | 4–30 characters |
+
+Internally the panel converts the package name to an identifier by replacing `.` with `_` (e.g., `com.acme.my-auth` → `com_acme_my-auth`).
+
+## Security considerations
+
+Extensions run with full access to the panel's database, settings, encryption keys, and inter-process state. Treat extensions with the same level of trust as the panel itself.
+
+<Warning>
+  Only install extensions from authors you trust. A malicious extension has full access to all panel data and can execute arbitrary code in the container.
+</Warning>
+
+The admin permission `extensions.manage` is required to upload, remove, or rebuild extensions. Grant this permission only to administrators who are responsible for infrastructure maintenance.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Auth providers" icon="key" href="/extensions/auth-providers">
+    Learn how to install and configure a backend auth provider extension.
+  </Card>
+  <Card title="Frontend extensions" icon="puzzle-piece" href="/extensions/frontend-extensions">
+    Understand the frontend extension API and how to add pages, components, and themes.
+  </Card>
+</CardGroup>

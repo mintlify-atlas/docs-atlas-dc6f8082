@@ -1,0 +1,117 @@
+---
+title: 'Security: 2FA, API keys, and vulnerability reporting'
+description: 'Manage two-factor authentication, WebAuthn passkeys, API keys, sessions, and learn how to report security vulnerabilities in Calagopus.'
+keywords: ['calagopus', '2fa', 'totp', 'webauthn', 'passkeys', 'api keys', 'security', 'sessions']
+---
+
+Calagopus provides several layers of account security: time-based one-time passwords (TOTP), WebAuthn passkeys and hardware security keys, API key management, and session tracking. This page explains how each works from an admin's perspective and how to report vulnerabilities.
+
+## Two-factor authentication
+
+### TOTP (authenticator apps)
+
+Users enable TOTP from **Account → Security → Two-factor authentication**. The panel generates a QR code that users scan with any TOTP-compatible app — such as Google Authenticator, Authy, or Bitwarden Authenticator. After scanning, the user enters a one-time code to confirm enrollment. Recovery codes are also generated at enrollment time.
+
+When TOTP is active, users are prompted for a six-digit code on each login after entering their password.
+
+**Disabling a user's TOTP via the CLI**
+
+If a user is locked out of their TOTP-enrolled account and cannot use recovery codes, an admin can disable TOTP from the server:
+
+```bash
+docker compose exec web panel users disable-2fa --user <username|email|uuid>
+```
+
+The command also accepts a UUID, email address, or username. It removes the TOTP secret and all recovery codes for that account.
+
+### WebAuthn (passkeys and security keys)
+
+WebAuthn allows users to log in with a passkey stored on their device (Face ID, Touch ID, Windows Hello) or a hardware security key (YubiKey, etc.).
+
+Users register a key from **Account → Security → Security keys**. The panel uses the **RP ID** and **RP origin** configured in **Admin → Settings → WebAuthn** to validate credentials. Both must match the domain and origin of your panel exactly.
+
+<Warning>
+  If you change the RP ID or RP origin after users have enrolled WebAuthn credentials, all enrolled devices will stop working. Affected users must re-enroll. Plan any changes carefully.
+</Warning>
+
+**Admin visibility into 2FA status**
+
+You can see whether a user has TOTP enabled in the user detail view at **Admin → Users → [user]**. WebAuthn key counts are also visible there.
+
+There is currently no bulk 2FA enforcement action in the UI. The **Two-factor authentication requirement** setting in **Admin → Settings → Application** enforces enrollment at login time — users without 2FA configured will be blocked until they enroll.
+
+## API keys
+
+Users manage their API keys from **Account → API keys**. Each key is given a description and optionally restricted to specific IP addresses.
+
+The panel-wide limit on how many API keys a user can hold is set in **Admin → Settings → User settings → Max API key count**.
+
+**Creating a key**
+
+1. Go to **Account → API keys**.
+2. Click **Create**.
+3. Enter a description and optionally an allowed IP or CIDR.
+4. Copy the generated key immediately — it is shown only once.
+
+**Revoking a key**
+
+Click the delete icon next to a key in **Account → API keys**. The key stops working immediately.
+
+<Note>
+  Admins cannot view or revoke individual users' API keys from the admin UI. If a key needs to be removed immediately, use the CLI or direct database access.
+</Note>
+
+## Session management
+
+Each login creates a session tracked in the panel's database. The session lifetime is configured in **Admin → Settings → Application → Session duration (seconds)**.
+
+Users can see and revoke their active sessions from **Account → Sessions**. Each session shows the IP address and approximate last-seen time.
+
+When a user changes their password or when an admin resets it via the CLI, all existing sessions are invalidated.
+
+**Resetting a user's password**
+
+```bash
+docker compose exec web panel users reset-password --user <username|email|uuid> --password <new-password>
+```
+
+Omit `--password` when running in an interactive terminal to be prompted securely.
+
+## Supported versions
+
+The following versions of Calagopus Panel currently receive security updates:
+
+| Version | Supported |
+|---------|-----------|
+| 1.0.x | Yes |
+| < 1.0.0 | No |
+
+If a reported vulnerability cannot be reproduced on the oldest supported version, it may not be considered valid. Depending on the nature and impact, a security advisory may still be published to inform users of older versions.
+
+## Reporting a vulnerability
+
+Do **not** report security vulnerabilities through public GitHub issues or Discord.
+
+Use one of the following methods instead:
+
+<CardGroup cols={2}>
+  <Card title="GitHub private advisory" icon="shield">
+    Use the Security Advisories tab in the Calagopus repository to submit a private report.
+  </Card>
+  <Card title="Email" icon="envelope">
+    Send details to `security@calagopus.com`. For sensitive reports, encrypt using the [PGP key](https://github.com/calagopus/branding/blob/main/SECURITY-PGP.md).
+  </Card>
+</CardGroup>
+
+Include as much of the following as possible:
+
+- Type of vulnerability
+- Step-by-step instructions to reproduce the issue
+- Proof-of-concept, if available
+- Your assessment of the potential impact
+
+When reporting, please:
+
+- Allow a reasonable amount of time for the issue to be addressed before any public disclosure.
+- Avoid accessing or modifying data that does not belong to you.
+- Act in good faith and avoid any actions that could harm the project or its users.

@@ -1,0 +1,198 @@
+---
+title: 'Install Calagopus Panel with Docker'
+description: 'Deploy Calagopus Panel with Docker Compose. Covers image variants, PostgreSQL and Valkey services, volume mounts, and first-run admin setup.'
+keywords: ['docker', 'docker compose', 'install', 'panel', 'calagopus']
+---
+
+Calagopus Panel is distributed as a Docker image and is designed to run with Docker Compose. This guide walks you through downloading the compose file, configuring required environment variables, starting the stack, and creating your first admin user.
+
+## Prerequisites
+
+Before you begin, make sure you have the following:
+
+- **Docker 24+** with the Compose plugin (`docker compose` command, not `docker-compose`)
+- A domain name pointed at your server
+- A reverse proxy (nginx or Caddy) to terminate TLS — see [Reverse proxy](/installation/reverse-proxy)
+
+## Image variants
+
+Calagopus publishes several image variants to `ghcr.io/calagopus/panel`:
+
+| Tag | Description |
+|---|---|
+| `latest` | Stable release. Recommended for most deployments. |
+| `nightly` | Built from the latest commit. May be unstable. |
+| `heavy` | Includes build tooling for loading backend extensions at runtime. |
+| `aio` | All-in-one image that bundles Wings alongside the panel. |
+| `nightly-heavy` | Nightly build of the heavy variant. |
+| `nightly-aio` | Nightly build of the all-in-one variant. |
+
+<Note>
+The `heavy` variant requires additional volume mounts for binaries, translations, extensions, and extension migrations. See [compose.heavy.yml](https://github.com/calagopus/panel/blob/main/compose.heavy.yml) for the full configuration.
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Download the compose file">
+    Download the standard `compose.yml` to a new directory. This directory will also hold your persistent data volumes.
+
+    ```bash
+    mkdir calagopus && cd calagopus
+    curl -o compose.yml https://raw.githubusercontent.com/calagopus/panel/main/compose.yml
+    ```
+  </Step>
+
+  <Step title="Set the encryption key">
+    Open `compose.yml` and replace the `APP_ENCRYPTION_KEY` value with a strong random string. This key is used to encrypt sensitive data stored in the database.
+
+    ```bash
+    # Generate a secure random key
+    openssl rand -hex 32
+    ```
+
+    Then update `compose.yml`:
+
+    ```yaml compose.yml
+    environment:
+      - APP_ENCRYPTION_KEY=your-generated-key-here  # replace CHANGEME
+    ```
+
+    <Warning>
+      `APP_ENCRYPTION_KEY` must be set before first launch. Changing it after the panel has stored encrypted data will make that data unreadable.
+    </Warning>
+  </Step>
+
+  <Step title="Start the stack">
+    ```bash
+    docker compose up -d
+    ```
+
+    On first boot, the panel automatically runs database migrations because `DATABASE_MIGRATE=true` is set by default.
+  </Step>
+
+  <Step title="Watch the logs">
+    Monitor startup progress and confirm all services are healthy:
+
+    ```bash
+    docker compose logs -f
+    ```
+
+    Press `Ctrl+C` to stop following logs. The panel is ready when you see the web service listening on port 8000.
+  </Step>
+
+  <Step title="Create an admin user">
+    ```bash
+    docker compose exec web panel users create
+    ```
+
+    Follow the prompts to set a username, email address, first name, last name, and password. Pass `--admin true` to grant the account administrator privileges.
+  </Step>
+</Steps>
+
+## Services
+
+The standard `compose.yml` defines three services:
+
+### `web` — Panel application
+
+The main Calagopus Panel process. It serves the web UI and API on port 8000 and handles background tasks when `APP_PRIMARY=true`.
+
+```yaml compose.yml
+services:
+  web:
+    image: ghcr.io/calagopus/panel:latest
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Berlin
+      - REDIS_URL=redis://cache
+      - DATABASE_URL=postgresql://panel:panel@db/panel
+      - DATABASE_MIGRATE=true
+      - PORT=8000
+      - APP_DEBUG=false
+      - APP_LOG_DIRECTORY=/var/log/calagopus
+      - APP_PRIMARY=true
+      - APP_ENABLE_WINGS_PROXY=true
+      - APP_ENCRYPTION_KEY=CHANGEME
+      - APP_USE_DECRYPTION_CACHE=true
+      - APP_USE_INTERNAL_CACHE=true
+    volumes:
+      - ./data:/var/lib/calagopus
+      - ./logs:/var/log/calagopus
+    ports:
+      - 8000:8000
+    depends_on:
+      - db
+      - cache
+```
+
+### `db` — PostgreSQL database
+
+Calagopus uses PostgreSQL for all persistent data. The `pgautoupgrade` image handles major version upgrades automatically.
+
+```yaml compose.yml
+  db:
+    image: ghcr.io/calagopus/pgautoupgrade:18-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=panel
+      - POSTGRES_PASSWORD=panel
+      - POSTGRES_DB=panel
+      - PGDATA=/data
+    volumes:
+      - ./postgres:/data
+```
+
+### `cache` — Valkey cache
+
+Valkey (a Redis-compatible cache) is used for short-lived values, session data, and the optional decryption cache. Persistence is enabled with a 60-second RDB snapshot.
+
+```yaml compose.yml
+  cache:
+    image: ghcr.io/calagopus/valkey:latest
+    restart: unless-stopped
+    command: --protected-mode no --save 60 1
+    volumes:
+      - ./cache:/data
+```
+
+## Volume mounts
+
+All data is stored in subdirectories relative to your `compose.yml` file:
+
+| Host path | Container path | Purpose |
+|---|---|---|
+| `./data` | `/var/lib/calagopus` | Panel application data |
+| `./logs` | `/var/log/calagopus` | Application log files |
+| `./postgres` | `/data` | PostgreSQL data directory |
+| `./cache` | `/data` | Valkey cache persistence |
+
+## Compose variants
+
+Several alternative compose files are available for specific use cases:
+
+<Columns cols={2}>
+  <Card title="compose.minimal.yml" icon="minimize" href="https://github.com/calagopus/panel/blob/main/compose.minimal.yml">
+    Panel and PostgreSQL only — no Valkey cache. Suitable for low-traffic or testing deployments.
+  </Card>
+  <Card title="compose.heavy.yml" icon="box" href="https://github.com/calagopus/panel/blob/main/compose.heavy.yml">
+    Uses the `heavy` image with extra volume mounts for runtime extension loading.
+  </Card>
+  <Card title="compose.aio.yml" icon="layers" href="https://github.com/calagopus/panel/blob/main/compose.aio.yml">
+    All-in-one image with Wings bundled. Also exposes port 2022 for SFTP.
+  </Card>
+  <Card title="compose.with-db-backups.yml" icon="database" href="https://github.com/calagopus/panel/blob/main/compose.with-db-backups.yml">
+    Adds automated daily PostgreSQL backups with configurable retention.
+  </Card>
+</Columns>
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="Configuration" icon="sliders" href="/installation/configuration">
+    Review all available environment variables and tune the panel for your setup.
+  </Card>
+  <Card title="Reverse proxy" icon="server" href="/installation/reverse-proxy">
+    Put nginx or Caddy in front of port 8000 to terminate TLS and handle WebSockets.
+  </Card>
+</Columns>

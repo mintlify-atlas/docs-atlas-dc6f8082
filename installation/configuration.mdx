@@ -1,0 +1,124 @@
+---
+title: 'Calagopus Panel environment variable reference'
+description: 'Complete reference for all Calagopus Panel environment variables. Covers database, cache, application settings, security, and multi-node deployment options.'
+keywords: ['configuration', 'environment variables', 'env', 'settings', 'calagopus']
+---
+
+Calagopus Panel is configured entirely through environment variables. You set these in your `compose.yml` file under the `web` service's `environment` block, or in a `.env` file if you are running the binary directly.
+
+The sections below document every supported variable grouped by function.
+
+## Database
+
+<ParamField path="DATABASE_URL" type="string" required>
+  PostgreSQL connection string. Format: `postgresql://user:password@host:port/database`.
+
+  Example: `postgresql://panel:panel@db/panel`
+</ParamField>
+
+<ParamField path="DATABASE_MIGRATE" type="boolean" default="true">
+  When `true`, the panel automatically runs pending database migrations on startup. Set to `false` if you want to run migrations manually or manage them separately.
+</ParamField>
+
+## Cache
+
+<ParamField path="REDIS_URL" type="string">
+  Redis-compatible connection string for Valkey or Redis. Format: `redis://host` or `redis://user:password@host:port`.
+
+  Example: `redis://cache`
+
+  If omitted (as in `compose.minimal.yml`), caching falls back to in-process memory only.
+</ParamField>
+
+## Application settings
+
+<ParamField path="PORT" type="number" default="8000">
+  The port the panel HTTP server listens on. Change this if port 8000 conflicts with another service.
+</ParamField>
+
+<ParamField path="TZ" type="string" default="UTC">
+  Timezone for the container and log timestamps. Uses standard tz database names.
+
+  Example: `Europe/Berlin`, `America/New_York`
+</ParamField>
+
+<ParamField path="APP_PRIMARY" type="boolean" default="true">
+  Designates this instance as the primary node responsible for running background tasks such as cleanup jobs and scheduled operations.
+
+  In a multi-node deployment, set `APP_PRIMARY=true` on exactly one instance and `APP_PRIMARY=false` on all others.
+</ParamField>
+
+<ParamField path="APP_DEBUG" type="boolean" default="false">
+  Enables verbose debug logging. Do not enable in production — log output will contain sensitive information.
+</ParamField>
+
+<ParamField path="APP_LOG_DIRECTORY" type="string">
+  Path inside the container where log files are written.
+
+  Example: `/var/log/calagopus`
+
+  This path should match the container-side path of your logs volume mount.
+</ParamField>
+
+<ParamField path="APP_ENABLE_WINGS_PROXY" type="boolean" default="true">
+  When enabled, the panel proxies user browser requests to Wings nodes through itself, rather than requiring direct browser-to-Wings connectivity.
+
+  This simplifies home network and NAT setups where the Wings node is not publicly reachable. It is not recommended for deployments with many nodes or high traffic, as all Wings traffic passes through the panel process.
+</ParamField>
+
+## Security
+
+<ParamField path="APP_ENCRYPTION_KEY" type="string" required>
+  A secret key used to encrypt sensitive values (such as node tokens) before they are stored in the database.
+
+  Generate a secure value before first launch:
+
+  ```bash
+  openssl rand -hex 32
+  ```
+
+  <Warning>
+    This value must be set before the panel writes any data. Changing it after encrypted data exists will make that data permanently unreadable. Store this key securely and back it up.
+  </Warning>
+</ParamField>
+
+<ParamField path="APP_USE_DECRYPTION_CACHE" type="boolean" default="true">
+  Caches decrypted values in memory and in Valkey to reduce repeated decryption overhead. This improves performance but means plaintext values are held in cache memory.
+
+  Disable if your security policy requires encrypted values never to be cached outside the database.
+</ParamField>
+
+<ParamField path="APP_USE_INTERNAL_CACHE" type="boolean" default="true">
+  Caches short-lived values in process memory in addition to Valkey. Reduces latency for frequently accessed data at the cost of higher memory usage per instance.
+
+  In multi-node setups, all instances share Valkey, so the internal cache may briefly serve stale data between nodes. Disable if strict cache consistency is required.
+</ParamField>
+
+## Full example
+
+The following is a complete example `compose.yml` environment block with all variables set:
+
+```yaml compose.yml
+environment:
+  - TZ=Europe/Berlin
+  - REDIS_URL=redis://cache
+  - DATABASE_URL=postgresql://panel:panel@db/panel
+  - DATABASE_MIGRATE=true
+  - PORT=8000
+  - APP_DEBUG=false
+  - APP_LOG_DIRECTORY=/var/log/calagopus
+  - APP_PRIMARY=true
+  - APP_ENABLE_WINGS_PROXY=true
+  - APP_ENCRYPTION_KEY=your-secret-key-here
+  - APP_USE_DECRYPTION_CACHE=true
+  - APP_USE_INTERNAL_CACHE=true
+```
+
+## Multi-node considerations
+
+When running more than one panel instance behind a load balancer:
+
+- Set `APP_PRIMARY=true` on exactly one instance. All other instances must have `APP_PRIMARY=false`.
+- All instances must share the same `DATABASE_URL` and `REDIS_URL`.
+- All instances must use the same `APP_ENCRYPTION_KEY`.
+- `APP_USE_INTERNAL_CACHE=true` means each instance has its own memory cache. A brief window of cache inconsistency between instances is possible. Set to `false` for strict consistency.

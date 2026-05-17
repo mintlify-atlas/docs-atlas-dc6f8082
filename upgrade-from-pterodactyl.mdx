@@ -1,0 +1,135 @@
+---
+title: "Migrate from Pterodactyl to Calagopus"
+description: "Import your Pterodactyl Panel data — users, servers, nodes, eggs, and SSH keys — into Calagopus using the built-in import CLI command."
+keywords: ['migrate', 'pterodactyl', 'import', 'upgrade', 'pelican', 'calagopus']
+---
+
+Calagopus includes a built-in `import` CLI command that reads your existing Pterodactyl (or Pelican) database and migrates the data into Calagopus. The import process is non-destructive — it does not modify or delete your source panel. You can run Pterodactyl and Calagopus side-by-side until you are ready to cut over.
+
+## What gets imported
+
+The import command reads directly from the source panel's MySQL database and migrates the following records:
+
+- Settings (app name, URL, SMTP configuration)
+- Users and SSH keys
+- Locations and nodes (daemon tokens are re-encrypted with the Calagopus encryption key)
+- Nests, eggs, and egg variables
+- Servers and their environment variables, allocations, and schedules
+- Database hosts and per-server databases
+- Server backups (metadata only; backup files on Wings nodes are not moved)
+
+<Warning>
+  The following are **not** imported and must be recreated manually:
+  - Frontend themes and custom CSS
+  - Backend extensions (auth providers, custom modules)
+  - Pterodactyl API keys (Calagopus issues new API tokens)
+</Warning>
+
+## Before you start
+
+<Steps>
+  <Step title="Back up your Pterodactyl database">
+    Before running any import, take a full backup of the Pterodactyl database. The import is read-only against the source, but having a backup is essential if you need to roll back.
+
+    ```bash
+    mysqldump -u root -p pterodactyl > pterodactyl-backup.sql
+    ```
+  </Step>
+
+  <Step title="Deploy and configure Calagopus">
+    Follow the [quickstart guide](/quickstart) to bring up a fresh Calagopus instance. Make sure the panel starts successfully and migrations have run before importing.
+
+    <Note>
+      The Calagopus panel must be configured and running before you execute the import command. The command requires a valid Calagopus environment to connect to.
+    </Note>
+  </Step>
+
+  <Step title="Ensure network access between containers">
+    If you are running Calagopus in Docker and Pterodactyl on the same host, make sure the panel container can reach the MySQL host. The official `compose.yml` includes an `extra_hosts` entry for this:
+
+    ```yaml compose.yml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ```
+
+    This allows the panel container to reach services on the host machine using the hostname `host.docker.internal`.
+  </Step>
+</Steps>
+
+## Run the import
+
+### From Pterodactyl
+
+The `import pterodactyl` command reads the Pterodactyl `.env` file to discover the source database credentials and `APP_KEY` (used to decrypt encrypted values such as node tokens and database passwords).
+
+```bash
+docker compose exec web panel import pterodactyl
+```
+
+By default the command looks for the Pterodactyl environment file at `/var/www/pterodactyl/.env`. If your installation is in a different location, pass the path with `--environment`:
+
+```bash
+docker compose exec web panel import pterodactyl \
+  --environment /path/to/pterodactyl/.env
+```
+
+### From Pelican
+
+Pelican is another Pterodactyl-based panel. Use the `import pelican` command instead. It defaults to `/var/www/pelican/.env` and supports both MySQL/MariaDB and SQLite source databases.
+
+```bash
+docker compose exec web panel import pelican
+```
+
+```bash
+docker compose exec web panel import pelican \
+  --environment /path/to/pelican/.env
+```
+
+### Non-Docker installations
+
+If you installed Calagopus without Docker, run the `panel` binary directly:
+
+```bash
+panel import pterodactyl --environment /var/www/pterodactyl/.env
+```
+
+## What happens during import
+
+The command streams each source table in batches, prints a progress bar per table, and inserts records into the Calagopus database using `ON CONFLICT DO NOTHING` — meaning re-running the import is safe and will not create duplicates.
+
+Node daemon tokens are decrypted using the Pterodactyl `APP_KEY` and then re-encrypted with the Calagopus `APP_ENCRYPTION_KEY`. Bcrypt password hashes are migrated as-is; users can log in with their existing passwords immediately after import.
+
+## After the import
+
+<Steps>
+  <Step title="Verify your data">
+    Log into the Calagopus admin panel and check that users, nodes, and servers appear as expected. Spot-check a few servers by opening them and reviewing their environment variables.
+  </Step>
+
+  <Step title="Test Wings connectivity">
+    Navigate to **Admin → Nodes** and confirm that each node shows as connected. Calagopus uses the same Wings API as Pterodactyl, so no Wings reconfiguration is required.
+  </Step>
+
+  <Step title="Create a new admin user if needed">
+    Imported users retain their existing passwords but lose any Pterodactyl admin API keys. Create a fresh admin account if required:
+
+    ```bash
+    docker compose exec web panel users create \
+      --username admin \
+      --email admin@example.com \
+      --name-first Admin \
+      --name-last User \
+      --password "your-password" \
+      --admin true
+    ```
+  </Step>
+
+  <Step title="Update your DNS or reverse proxy">
+    Once you have verified everything works, update your DNS record or reverse proxy to point to the Calagopus panel. Your users will be able to log in with their existing credentials.
+  </Step>
+</Steps>
+
+<Tip>
+  Keep your Pterodactyl installation running in parallel until you are confident the migration is complete. Because the import is read-only, the source panel is unaffected.
+</Tip>

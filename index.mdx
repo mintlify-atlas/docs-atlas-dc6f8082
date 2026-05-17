@@ -1,133 +1,72 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
-icon: 'star'
+title: "Calagopus: high-performance game server panel"
+description: "Calagopus is a Pterodactyl Panel alternative built with Rust and React. Wings-compatible, extensible, and built for self-hosted game server management."
 ---
 
-## Setting up
+Calagopus is a self-hosted game server management panel built from the ground up in Rust and React. It is a drop-in alternative to Pterodactyl Panel that is compatible with existing Wings nodes, while delivering significantly better performance, a redesigned user interface, and a first-class extension system.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quick start" icon="rocket" href="/quickstart">
+    Deploy Calagopus with Docker Compose and create your first server in minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Installation guide" icon="server" href="/installation/docker">
+    Full Docker-based installation with PostgreSQL and Valkey cache.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Migrate from Pterodactyl" icon="arrows-rotate" href="/upgrade-from-pterodactyl">
+    Import your existing Pterodactyl Panel data into Calagopus.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the REST API for servers, users, nodes, and more.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What Calagopus offers
 
-Everything you need to create world-class documentation.
+Calagopus preserves everything you rely on from Pterodactyl — Wings compatibility, eggs, nests, and allocations — while adding new capabilities and removing long-standing pain points.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Rust backend" icon="bolt">
+    The Axum-powered backend handles thousands of concurrent WebSocket connections with minimal memory usage.
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Modern React UI" icon="display">
+    Built with Mantine and React 19, the panel loads fast and responds instantly without full-page reloads.
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Extension system" icon="puzzle-piece" href="/extensions/overview">
+    Add auth providers, UI plugins, and backend modules without modifying core panel code.
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Role-based access" icon="shield-halved" href="/features/users-and-roles">
+    Granular admin permissions let you delegate specific tasks without granting full admin access.
   </Card>
-</Columns>
+  <Card title="Automated backups" icon="database" href="/features/backups">
+    Schedule backups to local storage or any S3-compatible provider with retention policies.
+  </Card>
+  <Card title="Task scheduler" icon="clock" href="/features/schedules">
+    Run cron-based schedules to automate power actions, commands, and backups.
+  </Card>
+</CardGroup>
 
-## Make your content agent ready
+## Get started in three steps
 
-Make your docs work for humans and AI agents alike.
+<Steps>
+  <Step title="Deploy with Docker Compose">
+    Pull the official image and start the panel alongside PostgreSQL and Valkey with a single command.
 
-<Columns cols={2}>
-  <Card
-    title="Prompt component"
-    icon="robot"
-    href="/agent-ready/prompt"
-  >
-    Embed shareable AI prompts readers can copy or open in Cursor.
-  </Card>
-  <Card
-    title="Visibility"
-    icon="eye"
-    href="/agent-ready/visibility"
-  >
-    Show different content to humans and agents reading your docs.
-  </Card>
-  <Card
-    title="Contextual menu"
-    icon="bolt"
-    href="/agent-ready/contextual"
-  >
-    Give readers one-click access to Claude, ChatGPT, Cursor, and more.
-  </Card>
-  <Card
-    title="AI coding tools"
-    icon="wand-magic-sparkles"
-    href="/ai-tools/claude-code"
-  >
-    Set up Claude Code, Cursor, or Windsurf with Mintlify's skill.
-  </Card>
-</Columns>
+    ```bash
+    docker compose up -d
+    ```
+  </Step>
+  <Step title="Create an admin account">
+    Use the CLI to create your first administrator account after the containers start.
 
-## Need inspiration?
+    ```bash
+    docker compose exec web panel users create
+    ```
+  </Step>
+  <Step title="Add a Wings node">
+    Connect an existing Wings node from the **Admin → Nodes** panel, then deploy your first server.
+  </Step>
+</Steps>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<Note>
+  Calagopus is compatible with existing Pterodactyl Wings nodes. You do not need to reinstall Wings to switch panels.
+</Note>

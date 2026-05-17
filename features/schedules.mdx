@@ -1,0 +1,120 @@
+---
+title: "Schedules in Calagopus Panel"
+description: "Automate server tasks with schedules in Calagopus: cron triggers, chained actions, power controls, commands, backups, and file operations."
+keywords: ['calagopus', 'schedules', 'cron', 'automation', 'tasks', 'power action', 'send command', 'create backup']
+---
+
+Schedules let you automate recurring tasks on a server without manual intervention. Each schedule has one or more triggers that define when it runs, a set of actions that execute in order, and optional pre-conditions that must be true before the actions begin.
+
+## Creating a schedule
+
+<Steps>
+  <Step title="Open the Schedules tab">
+    Navigate to your server and click **Schedules** in the sidebar.
+  </Step>
+  <Step title="Click Create">
+    Click the **Create** button. The schedule creation dialog opens.
+  </Step>
+  <Step title="Name the schedule">
+    Enter a descriptive name. The name appears in the schedule list and activity log.
+  </Step>
+  <Step title="Set the trigger">
+    Choose a trigger type. The most common is a **Cron** trigger — enter a standard five-field cron expression (minute, hour, day of month, month, day of week). For example, `0 4 * * *` runs daily at 04:00.
+  </Step>
+  <Step title="Enable or disable">
+    Toggle the schedule on or off. A disabled schedule is saved but never runs automatically. You can enable it later from the schedule's detail page.
+  </Step>
+  <Step title="Save">
+    Click **Create**. The schedule is created with no actions. Add actions on the schedule's detail page.
+  </Step>
+</Steps>
+
+<Tip>You can import a schedule from a JSON or YAML file by clicking the **Import** button on the Schedules list, or by dragging a schedule file onto the page.</Tip>
+
+## Schedule triggers
+
+Triggers define when a schedule executes. Multiple triggers can be added to a single schedule, and the schedule runs whenever any trigger fires.
+
+The current trigger types are:
+
+| Trigger | Description |
+|---------|-------------|
+| **Cron** | Fires according to a cron expression evaluated in the server's configured timezone |
+
+The schedule detail page displays each trigger's next calculated run time so you can verify the expression is correct before the first execution.
+
+## Adding actions
+
+Actions define what the schedule does when it runs. Navigate to the schedule's detail page and click the **Actions** tab, then click **Edit** to open the actions editor.
+
+Actions execute in the order they are listed. Each action runs after the previous one completes or after an optional delay.
+
+### Available action types
+
+<CardGroup cols={2}>
+  <Card title="Send power action" icon="power-off">
+    Start, stop, restart, or kill the server.
+  </Card>
+  <Card title="Send command" icon="terminal">
+    Send a command string to the server console, as if you typed it manually.
+  </Card>
+  <Card title="Create backup" icon="archive">
+    Trigger an immediate backup. Optionally specify a backup name and ignored file patterns.
+  </Card>
+  <Card title="Sleep" icon="clock">
+    Pause execution for a specified number of seconds before running the next action.
+  </Card>
+  <Card title="File operations" icon="folder">
+    Copy, rename, move, delete, compress, decompress, or write files.
+  </Card>
+  <Card title="Update startup" icon="play">
+    Change a startup variable value, Docker image, or the full startup command.
+  </Card>
+  <Card title="Wait for console line" icon="align-left">
+    Pause the schedule until a specific string appears in the server's console output.
+  </Card>
+  <Card title="Match regex" icon="magnifying-glass">
+    Assert that a value matches a regular expression. The schedule stops if the match fails.
+  </Card>
+</CardGroup>
+
+### Example: daily restart with backup
+
+A common pattern is to create a backup before restarting the server each night:
+
+1. **Create backup** — take a backup before stopping
+2. **Sleep** — wait 30 seconds for the backup to complete
+3. **Send power action** — restart the server
+
+## Pre-conditions
+
+Pre-conditions let you add logic that must be satisfied before the schedule's actions run. Open the **Conditions** tab on the schedule detail page to configure them.
+
+If a pre-condition is not met when the schedule fires, the entire action list is skipped for that run. This is useful for avoiding unnecessary restarts when a server is already offline, or skipping a backup when no players are online.
+
+## Triggering manually
+
+You can run a schedule immediately from its detail page without waiting for the next scheduled time.
+
+<Steps>
+  <Step title="Open the schedule">
+    Click on the schedule name in the Schedules list to open its detail page.
+  </Step>
+  <Step title="Click Trigger">
+    Click the **Trigger** button. A dropdown offers two options:
+    - **Trigger with condition**: runs only if the pre-conditions are met
+    - **Trigger (skip condition)**: runs regardless of pre-conditions
+  </Step>
+</Steps>
+
+<Note>The **Trigger** button is only available when the schedule is enabled and has at least one action configured.</Note>
+
+## Schedule history
+
+The schedule detail page shows the **Last Run** and **Last Failure** timestamps. If a schedule failed during its last run, the failure time is highlighted in red.
+
+The server's **Activity** log contains a full record of schedule executions, including which actions ran and any errors that occurred.
+
+## Enabling and disabling
+
+You can toggle a schedule on or off at any time from the schedule's detail page by clicking **Edit** and changing the enabled state. Disabling a schedule does not delete it or its actions.

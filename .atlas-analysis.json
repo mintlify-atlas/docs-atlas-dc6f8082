@@ -1,0 +1,128 @@
+{
+  "projectType": "saas",
+  "projectName": "Calagopus Panel",
+  "projectDescription": "A high-performance Pterodactyl Panel alternative built with Rust and React, offering improved UX, better performance, and an extensible architecture for self-hosted game server management.",
+  "theme": "luma",
+  "primaryColor": "#b6b6b6",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "upgrade-from-pterodactyl"
+            ]
+          },
+          {
+            "group": "Installation",
+            "pages": [
+              "installation/docker",
+              "installation/configuration",
+              "installation/reverse-proxy"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/server-management",
+              "features/nodes-and-locations",
+              "features/eggs-and-nests",
+              "features/users-and-roles",
+              "features/backups",
+              "features/schedules"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "extensions/overview",
+              "extensions/auth-providers",
+              "extensions/frontend-extensions"
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "administration/settings",
+              "administration/oauth-providers",
+              "administration/security",
+              "administration/cli"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Client API",
+            "pages": [
+              "api/client/servers",
+              "api/client/account"
+            ]
+          },
+          {
+            "group": "Admin API",
+            "pages": [
+              "api/admin/users",
+              "api/admin/servers",
+              "api/admin/nodes",
+              "api/admin/eggs"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Rust + Axum backend for high performance and low memory usage",
+    "React + Mantine UI with real-time server console via WebSocket",
+    "Full Pterodactyl API compatibility for Wings nodes",
+    "Extensible plugin architecture for backend and frontend",
+    "OAuth2 / SSO provider support",
+    "TOTP and WebAuthn (passkey) two-factor authentication",
+    "Integrated file manager with Monaco editor",
+    "Automated server backups with S3-compatible storage",
+    "Task scheduling with cron expressions",
+    "Wings proxy for simplified home network setups",
+    "Role-based access control with fine-grained admin permissions",
+    "Docker Compose deployment with PostgreSQL and Valkey (Redis)"
+  ],
+  "publicApiSurface": [
+    "GET /api/client/servers — list user's servers",
+    "GET /api/client/servers/{id} — get server details",
+    "POST /api/client/servers/{id}/power — send power action",
+    "POST /api/client/servers/{id}/command — send console command",
+    "GET /api/client/servers/{id}/resources — get resource usage",
+    "GET /api/client/servers/{id}/websocket — get WebSocket token",
+    "GET /api/client/servers/{id}/files/list — list files",
+    "GET /api/client/servers/{id}/backups — list backups",
+    "GET /api/client/servers/{id}/schedules — list schedules",
+    "GET /api/client/servers/{id}/databases — list databases",
+    "GET /api/client/servers/{id}/subusers — list subusers",
+    "GET /api/admin/users — list users",
+    "GET /api/admin/servers — list all servers",
+    "GET /api/admin/nodes — list nodes",
+    "GET /api/admin/nests — list nests",
+    "GET /api/admin/eggs — list egg configurations",
+    "GET /api/admin/locations — list locations",
+    "GET /api/admin/settings — get panel settings",
+    "GET /api/admin/stats — get system stats",
+    "GET /api/admin/extensions — list installed extensions",
+    "POST /api/auth/login — authenticate user",
+    "POST /api/auth/register — register new user"
+  ]
+}

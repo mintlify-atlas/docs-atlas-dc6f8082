@@ -1,0 +1,188 @@
+---
+title: 'Admin settings reference: configure your Calagopus panel'
+description: 'Configure panel name, locale, session handling, CAPTCHA, activity logs, rate limits, and server constraints from the Admin → Settings page.'
+keywords: ['calagopus', 'admin settings', 'captcha', 'session', 'registration', 'activity log', 'rate limits']
+---
+
+The **Settings** page in the Admin area lets you control every aspect of the panel that is configurable at runtime. Changes take effect immediately after you click **Save** — no restart is required. Navigate to **Admin → Settings** to get started.
+
+## Application settings
+
+General settings that affect the panel's branding and behavior.
+
+<AccordionGroup>
+  <Accordion title="Name">
+    The display name of your panel instance. This appears in the browser title bar and in email notifications. Maximum 64 characters.
+  </Accordion>
+  <Accordion title="Language">
+    The default locale used for new users and for the admin UI. This is a BCP 47 language tag (for example, `en` or `de`). Users may override this individually if **Allow changing language** is enabled under user settings.
+  </Accordion>
+  <Accordion title="Icon and banner">
+    A URL pointing to an image used as the panel icon (favicon/logo area) and an optional banner image shown on the login page. Both fields accept any URL up to 255 characters. You can pick from previously uploaded assets using the autocomplete.
+  </Accordion>
+  <Accordion title="URL">
+    The canonical public URL of your panel — for example, `https://panel.example.com`. This is used to construct redirect URLs and links in emails. It must be a valid URL.
+  </Accordion>
+  <Accordion title="Two-factor authentication requirement">
+    Controls which users are required to have 2FA enabled before they can log in:
+
+    | Option | Effect |
+    |--------|--------|
+    | **None** | 2FA is optional for all users |
+    | **Admins** | Only users with admin access must enroll |
+    | **All users** | Every user must enroll before accessing the panel |
+  </Accordion>
+  <Accordion title="Session cookie and duration">
+    The name of the session cookie issued on login (default: `pterodactyl_session`) and the session lifetime in seconds (minimum 60, maximum 31 536 000). Changing the cookie name invalidates all existing sessions.
+  </Accordion>
+  <Accordion title="Registration">
+    When enabled, anyone can create an account at the login page. When disabled, accounts must be created by an admin via **Admin → Users** or the CLI. You will be asked to confirm before enabling registration if no CAPTCHA is configured.
+  </Accordion>
+  <Accordion title="Telemetry">
+    Allows Calagopus to send anonymous usage data to help improve the project. No personally identifiable information is included. You can preview the exact payload before sending by clicking **Preview Telemetry**.
+  </Accordion>
+</AccordionGroup>
+
+## WebAuthn settings
+
+These settings control passkey and hardware security key support.
+
+<AccordionGroup>
+  <Accordion title="Relying party ID (RP ID)">
+    The domain your panel is served from, without a scheme or port — for example, `panel.example.com`. This must match the domain in the browser's address bar exactly. Changing this value after users have enrolled passkeys will invalidate those credentials.
+  </Accordion>
+  <Accordion title="Relying party origin (RP origin)">
+    The full origin URL including scheme — for example, `https://panel.example.com`. Must be a valid URL.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  Changing the RP ID or RP origin after users have registered passkeys or security keys will prevent those credentials from working. Affected users will need to re-enroll their devices.
+</Warning>
+
+## Server settings
+
+Limits and permissions that apply to servers and their file managers.
+
+<AccordionGroup>
+  <Accordion title="File manager view size">
+    Maximum size in bytes of a file that can be viewed in the in-browser file editor. Files larger than this limit show a download prompt instead.
+  </Accordion>
+  <Accordion title="File manager content search size">
+    Maximum size in bytes of a file that participates in in-browser content search.
+  </Accordion>
+  <Accordion title="File manager search results">
+    Maximum number of results returned by a file manager search query.
+  </Accordion>
+  <Accordion title="Subuser count">
+    Maximum number of subusers (co-owners) that can be added to a single server.
+  </Accordion>
+  <Accordion title="Schedule step count">
+    Maximum number of steps allowed in a single server schedule.
+  </Accordion>
+  <Accordion title="Allow overwriting custom Docker image">
+    When enabled, users can override the Docker image specified by the egg with a custom image string.
+  </Accordion>
+  <Accordion title="Allow viewing installation logs">
+    When enabled, users can view the output of a server's installation script while it runs.
+  </Accordion>
+  <Accordion title="Allow viewing transfer progress">
+    When enabled, users can see live progress when a server is being transferred between nodes.
+  </Accordion>
+</AccordionGroup>
+
+## User settings
+
+Limits that apply to user accounts panel-wide.
+
+<AccordionGroup>
+  <Accordion title="Max server group count">
+    Maximum number of server groups a user can create.
+  </Accordion>
+  <Accordion title="Max API key count">
+    Maximum number of API keys a user can hold at one time.
+  </Accordion>
+  <Accordion title="Max command snippet count">
+    Maximum number of saved command snippets per user.
+  </Accordion>
+  <Accordion title="Max security key count">
+    Maximum number of WebAuthn security keys (passkeys) a user can register.
+  </Accordion>
+  <Accordion title="Max SSH key count">
+    Maximum number of SSH public keys a user can store.
+  </Accordion>
+  <Accordion title="Allow changing language">
+    When enabled, users can override the panel's default language from their account settings.
+  </Accordion>
+</AccordionGroup>
+
+## Activity log settings
+
+Control how long activity logs are retained and what gets logged.
+
+<AccordionGroup>
+  <Accordion title="Admin log retention">
+    How long (in days, 1–3650) admin activity records are kept. You can also set an optional maximum record count; when both limits are set, whichever is reached first causes older records to be pruned.
+  </Accordion>
+  <Accordion title="User log retention">
+    Same retention controls as admin logs, applied to user-level activity events.
+  </Accordion>
+  <Accordion title="Server log retention">
+    Retention for server activity events. Additionally:
+
+    - **Log admin activity on servers** — records actions taken by admins in the server context.
+    - **Log schedule activity** — records when scheduled tasks run.
+  </Accordion>
+</AccordionGroup>
+
+## CAPTCHA settings
+
+CAPTCHA challenges protect the registration and login forms from automated abuse.
+
+Select a provider from the **Provider** dropdown. When you switch providers, new fields appear for the credentials required by that provider.
+
+<Tabs>
+  <Tab title="None">
+    No CAPTCHA challenge is shown. Suitable for panels that restrict registration or are used in private environments.
+
+    <Warning>
+      Running without CAPTCHA and with open registration exposes your panel to automated account creation. Enable at least one CAPTCHA provider if registration is open.
+    </Warning>
+  </Tab>
+  <Tab title="reCAPTCHA">
+    Google reCAPTCHA v2 or v3. Requires a **site key** and **secret key** from the [Google reCAPTCHA admin console](https://www.google.com/recaptcha/admin).
+  </Tab>
+  <Tab title="hCaptcha">
+    Cloudflare-independent alternative. Requires a **site key** and **secret key** from [hCaptcha](https://www.hcaptcha.com/).
+  </Tab>
+  <Tab title="Friendly Captcha">
+    Privacy-friendly, accessibility-conscious provider. Requires a **site key** and **API key** from [Friendly Captcha](https://friendlycaptcha.com/).
+  </Tab>
+  <Tab title="Cloudflare Turnstile">
+    Turnstile from Cloudflare. Requires a **site key** and **secret key** from the [Cloudflare dashboard](https://dash.cloudflare.com/).
+  </Tab>
+</Tabs>
+
+## Rate limit settings
+
+Rate limits protect endpoints from brute-force and abuse. Each endpoint accepts a **limit** (maximum requests) and a **period** (window in seconds).
+
+| Endpoint | Default protection |
+|----------|--------------------|
+| `auth_register` | New account registration |
+| `auth_login` | Password login attempts |
+| `auth_login_checkpoint` | 2FA checkpoint |
+| `auth_login_security_key` | WebAuthn login |
+| `auth_password_forgot` | Password reset requests |
+| `client` | General client API requests |
+| `client_servers_backups_create` | Backup creation per server |
+| `client_servers_files_pull` | Remote file pull requests |
+| `client_servers_files_pull_query` | File pull status queries |
+
+## Saving settings
+
+Each settings section has its own **Save** button. Click **Save** after making changes in a section to apply them. Settings are validated before saving; the form will highlight any invalid fields.
+
+<Note>
+  You need the `settings.update` admin permission to save changes. If the button is disabled, check with your panel owner about your role.
+</Note>

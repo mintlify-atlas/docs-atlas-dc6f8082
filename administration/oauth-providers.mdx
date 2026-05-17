@@ -1,0 +1,105 @@
+---
+title: 'OAuth providers: configure social login for Calagopus'
+description: 'Add and configure OAuth2 login providers so users can sign in with GitHub, Google, Discord, or any standards-compliant identity provider.'
+keywords: ['oauth', 'oauth2', 'social login', 'sso', 'calagopus', 'github login', 'discord login']
+---
+
+OAuth providers let users log in to the panel using an external identity service — such as GitHub, Google, or Discord — without managing a separate password. Calagopus supports any OAuth2-compliant provider through a generic configuration interface. Navigate to **Admin → OAuth Providers** to manage providers.
+
+## How OAuth login works
+
+When a user clicks a provider's login button, they are redirected to the provider's authorization page. After granting access, the provider sends an authorization code to the panel's callback URL. The panel exchanges this code for user information and either logs in an existing linked account or creates a new one.
+
+Each provider is configured with the endpoints needed for a standard OAuth2 Authorization Code flow:
+
+- **Auth URL** — where the user is sent to authorize access
+- **Token URL** — where the panel exchanges the code for an access token
+- **Info URL** — where the panel fetches user profile data using the token
+
+## Adding an OAuth provider
+
+<Steps>
+  <Step title="Open the create form">
+    Go to **Admin → OAuth Providers** and click **Create**.
+  </Step>
+  <Step title="Fill in identity and endpoint fields">
+    | Field | Description |
+    |-------|-------------|
+    | **Name** | Display name shown on the login button (for example, `GitHub`). Must be unique. |
+    | **Description** | Optional internal note. |
+    | **Client ID** | The client identifier issued by the provider. |
+    | **Client Secret** | The client secret issued by the provider. |
+    | **Auth URL** | The provider's authorization endpoint URL. |
+    | **Token URL** | The provider's token exchange endpoint URL. |
+    | **Info URL** | The endpoint to fetch the authenticated user's profile. |
+    | **Scopes** | Space-separated OAuth2 scopes to request. Include `email` and `profile` (or provider equivalents) to populate user data automatically. |
+  </Step>
+  <Step title="Configure the callback URL">
+    After creating the provider, the callback URL is shown in the provider's detail view:
+
+    ```
+    https://<your-panel-url>/api/auth/oauth/<provider-uuid>
+    ```
+
+    Register this URL as the authorized redirect URI in your provider's developer console.
+  </Step>
+  <Step title="Configure JSON path mappings">
+    The panel extracts user fields from the Info URL response using JSON paths (compatible with [serde_json_path](https://serdejsonpath.live)).
+
+    | Field | Required | Description |
+    |-------|----------|-------------|
+    | **Identifier Path** | Yes | A path that uniquely identifies the user in the provider, for example `$.id` or `$.sub`. |
+    | **Email Path** | No | Path to the user's email address. |
+    | **Username Path** | No | Path to the username. |
+    | **First Name Path** | No | Path to the first name. |
+    | **Last Name Path** | No | Path to the last name. |
+
+    <Tip>
+      Use the [serde_json_path live tester](https://serdejsonpath.live) to validate your paths against a real API response before saving.
+    </Tip>
+  </Step>
+  <Step title="Set behavior options">
+    | Option | Default | Description |
+    |--------|---------|-------------|
+    | **Enabled** | On | Whether the provider is available on the login page. |
+    | **Only allow login** | Off | Prevents new account creation via this provider; only existing linked accounts can use it. |
+    | **Bypass 2FA on login** | Off | Users who log in with this provider skip the 2FA checkpoint. Enable only for trusted corporate SSO. |
+    | **Link viewable to user** | On | Users can see their linked provider connection in their account settings. |
+    | **Link manageable by user** | On | Users can connect or disconnect this provider themselves. |
+    | **Basic auth** | Off | Sends client credentials using HTTP Basic Authentication instead of as form parameters. Uncommon; only enable if the provider requires it. |
+  </Step>
+  <Step title="Save the provider">
+    Click **Save**. The provider appears on the login page immediately if **Enabled** is on.
+  </Step>
+</Steps>
+
+## Editing a provider
+
+Click a provider's row in **Admin → OAuth Providers** to open its detail page. All fields are editable. The **Client Secret** field accepts a new value only when you enter text; leaving it blank keeps the existing secret.
+
+You can export a provider's configuration (without credentials) as JSON or YAML using the **Export** button. This is useful for sharing a base configuration or backing up endpoint settings.
+
+## Removing a provider
+
+<Warning>
+  Deleting a provider removes the link records for all users who authenticated with it. Those users will no longer be able to log in via this provider. Users who have no password set and only use this provider to log in will be locked out.
+</Warning>
+
+To delete a provider:
+
+1. Open the provider in **Admin → OAuth Providers**.
+2. Click **Delete** and confirm.
+
+## How users connect OAuth accounts
+
+When **Link manageable by user** is on, users can connect a provider from their account settings:
+
+1. Go to **Account → Connections**.
+2. Click **Connect** next to the provider.
+3. Complete the authorization flow in the popup.
+
+To disconnect, click **Disconnect** next to the linked provider. Disconnecting is only possible if the account has a password or another login method configured.
+
+## Linked users
+
+Each provider has a **Users** sub-page in the admin view that lists all users who have a linked account for that provider. You can view the provider-side identifier for each linked user.

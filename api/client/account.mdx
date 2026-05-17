@@ -1,0 +1,303 @@
+---
+title: 'Client API: user account management endpoints'
+description: 'Account endpoints for retrieving and updating profile info, changing passwords, managing API keys, sessions, and two-factor authentication.'
+keywords: ['api', 'client', 'account', 'api keys', 'password', 'two-factor', '2fa', 'sessions', 'calagopus']
+---
+
+The account endpoints under `/api/client/account` let you read and update your own profile, manage API keys, configure two-factor authentication, and review active sessions.
+
+---
+
+## Get account
+
+Returns the full profile of the authenticated user.
+
+```
+GET /api/client/account
+```
+
+<ResponseField name="user" type="object">
+  The authenticated user's profile.
+  <Expandable title="properties">
+    <ResponseField name="uuid" type="string">User UUID.</ResponseField>
+    <ResponseField name="username" type="string">Username (3–15 alphanumeric/underscore characters).</ResponseField>
+    <ResponseField name="email" type="string">Email address.</ResponseField>
+    <ResponseField name="name_first" type="string">First name.</ResponseField>
+    <ResponseField name="name_last" type="string">Last name.</ResponseField>
+    <ResponseField name="admin" type="boolean">Whether the account has global admin rights.</ResponseField>
+    <ResponseField name="totp_enabled" type="boolean">Whether two-factor authentication is active.</ResponseField>
+    <ResponseField name="language" type="string">UI language code.</ResponseField>
+    <ResponseField name="toast_position" type="string">Notification position preference.</ResponseField>
+    <ResponseField name="start_on_grouped_servers" type="boolean">Whether the servers list opens in grouped view.</ResponseField>
+    <ResponseField name="created" type="string">ISO 8601 creation timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Tabs>
+  <Tab title="curl">
+    ```bash
+    curl https://your-panel.example.com/api/client/account \
+      -H "Authorization: Bearer ptlc_YourKey"
+    ```
+  </Tab>
+  <Tab title="Response">
+    ```json
+    {
+      "user": {
+        "uuid": "abc12345-...",
+        "username": "johnsmith",
+        "email": "john@example.com",
+        "name_first": "John",
+        "name_last": "Smith",
+        "admin": false,
+        "totp_enabled": false,
+        "language": "en",
+        "created": "2026-01-01T00:00:00Z"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Update account
+
+Updates profile fields for the authenticated user. All fields are optional; only provided fields are changed.
+
+```
+PATCH /api/client/account
+```
+
+<ParamField body="username" type="string">
+  New username. 3–15 characters, alphanumeric and underscores only.
+</ParamField>
+
+<ParamField body="name_first" type="string">
+  First name. 2–255 characters.
+</ParamField>
+
+<ParamField body="name_last" type="string">
+  Last name. 2–255 characters.
+</ParamField>
+
+<ParamField body="language" type="string">
+  UI language code. 2–15 characters. Only accepted if the panel allows language changes.
+</ParamField>
+
+<ParamField body="toast_position" type="string">
+  Notification position. One of `top_left`, `top_center`, `top_right`, `bottom_left`, `bottom_center`, `bottom_right`.
+</ParamField>
+
+<ParamField body="start_on_grouped_servers" type="boolean">
+  Whether the server list opens in grouped view by default.
+</ParamField>
+
+**Required permission:** `account.infos`
+
+---
+
+## Change password
+
+Updates the account password. Requires the current password for verification.
+
+```
+POST /api/client/account/password
+```
+
+<ParamField body="current_password" type="string" required>
+  The account's current password.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The new password.
+</ParamField>
+
+<ParamField body="password_confirmation" type="string" required>
+  Must match `password`.
+</ParamField>
+
+**Required permission:** `account.password`
+
+---
+
+## Logout
+
+Destroys the current session (when authenticated via session cookie).
+
+```
+POST /api/client/account/logout
+```
+
+---
+
+## API keys
+
+### List API keys
+
+```
+GET /api/client/account/api-keys
+```
+
+<ParamField query="page" type="integer" default="1">Page number.</ParamField>
+<ParamField query="per_page" type="integer" default="10">Items per page.</ParamField>
+<ParamField query="search" type="string">Filter by key name.</ParamField>
+
+**Required permission:** `api-keys.read`
+
+<ResponseField name="api_keys" type="object (paginated)">
+  List of API key objects.
+  <Expandable title="key object properties">
+    <ResponseField name="uuid" type="string">Key UUID.</ResponseField>
+    <ResponseField name="name" type="string">Key name.</ResponseField>
+    <ResponseField name="key_start" type="string">First few characters of the key for identification.</ResponseField>
+    <ResponseField name="allowed_ips" type="string[]">IP restrictions on the key.</ResponseField>
+    <ResponseField name="user_permissions" type="string[]">Granted user-level permissions.</ResponseField>
+    <ResponseField name="admin_permissions" type="string[]">Granted admin-level permissions.</ResponseField>
+    <ResponseField name="server_permissions" type="string[]">Granted server-level permissions.</ResponseField>
+    <ResponseField name="expires" type="string | null">Expiry datetime or null.</ResponseField>
+    <ResponseField name="last_used" type="string | null">Last-used datetime or null.</ResponseField>
+    <ResponseField name="created" type="string">Creation datetime.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Create an API key
+
+```
+POST /api/client/account/api-keys
+```
+
+<ParamField body="name" type="string" required>
+  Key name. 3–31 characters.
+</ParamField>
+
+<ParamField body="allowed_ips" type="string[]" required>
+  Allowed IP addresses or CIDR ranges. Empty array allows all IPs.
+</ParamField>
+
+<ParamField body="user_permissions" type="string[]" required>
+  User-level permissions to grant. Must be a subset of your own permissions.
+</ParamField>
+
+<ParamField body="admin_permissions" type="string[]" required>
+  Admin-level permissions to grant. Must be a subset of your own permissions.
+</ParamField>
+
+<ParamField body="server_permissions" type="string[]" required>
+  Server-level permissions to grant. Must be a subset of your own permissions.
+</ParamField>
+
+<ParamField body="expires" type="string">
+  Optional ISO 8601 expiry datetime. Must be in the future.
+</ParamField>
+
+**Required permission:** `api-keys.create`
+
+The response includes a `key` field with the full API key value. **This is returned only once.**
+
+```json
+{
+  "api_key": { "uuid": "...", "name": "my-key", ... },
+  "key": "ptlc_YourNewKeyHere"
+}
+```
+
+### Delete an API key
+
+```
+DELETE /api/client/account/api-keys/{api_key}
+```
+
+<ParamField path="api_key" type="string" required>
+  UUID of the API key to delete.
+</ParamField>
+
+**Required permission:** `api-keys.delete`
+
+---
+
+## Two-factor authentication
+
+### Begin 2FA setup
+
+Generates a TOTP secret and OTP URL to display as a QR code.
+
+```
+GET /api/client/account/two-factor
+```
+
+<ResponseField name="otp_url" type="string">
+  `otpauth://` URL to encode as a QR code for authenticator apps.
+</ResponseField>
+
+<ResponseField name="secret" type="string">
+  Base32-encoded TOTP secret for manual entry.
+</ResponseField>
+
+Returns `409 Conflict` if 2FA is already enabled.
+
+**Required permission:** `account.two-factor`
+
+### Enable 2FA
+
+Confirms the TOTP setup with the first valid code.
+
+```
+POST /api/client/account/two-factor
+```
+
+<ParamField body="code" type="string" required>
+  6-digit TOTP code from your authenticator app.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Current account password for verification.
+</ParamField>
+
+Returns a list of recovery codes on success. **Save these codes securely.**
+
+```json
+{
+  "recovery_codes": ["AAAA-BBBB-CCCC", "DDDD-EEEE-FFFF", "..."]
+}
+```
+
+**Required permission:** `account.two-factor`
+
+### Disable 2FA
+
+```
+DELETE /api/client/account/two-factor
+```
+
+<ParamField body="code" type="string" required>
+  Either a 6-digit TOTP code or a 10-character recovery code.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Current account password.
+</ParamField>
+
+**Required permission:** `account.two-factor`
+
+---
+
+## Sessions
+
+### List sessions
+
+```
+GET /api/client/account/sessions
+```
+
+Returns all active sessions for the account, including IP address, user agent, and last-used time.
+
+### Revoke a session
+
+```
+DELETE /api/client/account/sessions/{session}
+```
+
+<ParamField path="session" type="string" required>
+  UUID of the session to revoke.
+</ParamField>

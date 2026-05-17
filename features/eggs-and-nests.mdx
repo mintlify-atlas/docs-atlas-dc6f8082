@@ -1,0 +1,124 @@
+---
+title: "Eggs and nests in Calagopus Panel"
+description: "Understand how nests and eggs work in Calagopus: create server templates, define variables, write install scripts, and sync eggs from remote repositories."
+keywords: ['calagopus', 'eggs', 'nests', 'server templates', 'docker image', 'startup command', 'egg variables', 'egg repository']
+---
+
+Eggs are server templates that define everything needed to run a specific type of game server: the Docker image, the startup command, the install script, and the environment variables. Nests are categories that group related eggs together — for example, a "Minecraft" nest might contain eggs for Vanilla, Fabric, and Paper.
+
+## Nests
+
+A nest is simply a label used to organise eggs. Every egg belongs to one nest.
+
+<Steps>
+  <Step title="Open Nests">
+    In the admin panel, navigate to **Nests** and click **Create**.
+  </Step>
+  <Step title="Name the nest">
+    Enter a descriptive name such as `Minecraft` or `Source Engine`.
+  </Step>
+  <Step title="Save">
+    Click **Save**. You can now create eggs inside this nest.
+  </Step>
+</Steps>
+
+You can move an egg from one nest to another at any time using the **Move** button on the egg's settings page.
+
+## Eggs
+
+An egg describes exactly how a server runs. When you create a server, you pick an egg and Calagopus configures the Wings container based on the egg's settings.
+
+### How an egg works
+
+<CardGroup cols={2}>
+  <Card title="Docker image" icon="docker">
+    Defines which container image Wings uses. Multiple images can be listed and the operator picks one during server creation.
+  </Card>
+  <Card title="Startup command" icon="terminal">
+    The command Wings runs inside the container when you press **Start**. Multiple named commands can be defined and one is selected per server.
+  </Card>
+  <Card title="Variables" icon="sliders">
+    Environment variables injected into the container. They can be user-editable or admin-only.
+  </Card>
+  <Card title="Install script" icon="scroll">
+    A Bash script that runs once inside a temporary container when a server is first created.
+  </Card>
+</CardGroup>
+
+### Creating an egg
+
+<Steps>
+  <Step title="Open the nest">
+    Navigate to **Nests**, open the nest you want to add the egg to, and click **Create Egg**.
+  </Step>
+  <Step title="Fill in basic details">
+    Enter an author email, a name, and an optional description.
+  </Step>
+  <Step title="Configure startup">
+    Under **Startup Configuration**, add one or more console strings that indicate the server has finished starting (for example, `Done (`). Wings watches for these strings to set the server state to **Running**.
+  </Step>
+  <Step title="Configure stop">
+    Choose how Wings stops the server: send a command (such as `stop`), send a Unix signal (such as `SIGTERM`), or use Docker's stop mechanism.
+  </Step>
+  <Step title="Add Docker images">
+    Under **Docker Images**, add one or more key-value pairs where the key is a display label and the value is the full image reference (for example, `ghcr.io/calagopus/java:21`).
+  </Step>
+  <Step title="Add startup commands">
+    Under **Startup Commands**, add one or more named command strings. The `Default` key is used automatically during server creation.
+  </Step>
+  <Step title="Save">
+    Click **Save**. The egg is ready to use when creating servers.
+  </Step>
+</Steps>
+
+### Egg variables
+
+Variables let operators and users configure server behaviour without editing files manually. Each variable maps to an environment variable that Wings injects into the container.
+
+Navigate to the egg's **Variables** tab to manage them.
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Human-readable label shown in the UI |
+| **Environment variable** | The variable name injected into the container (for example, `SERVER_PORT`) |
+| **Default value** | Pre-filled value for new servers |
+| **User viewable** | Whether the variable is visible to non-admin users |
+| **User editable** | Whether the user can change the value from the server's Startup tab |
+| **Secret** | Masks the value in the UI like a password field |
+| **Rules** | Validation rules applied before saving (for example, `required|integer|min:1024`) |
+
+You can reorder variables by dragging them. The order determines how they appear on the server's Startup tab.
+
+### Install scripts
+
+The install script runs once when a server is first created. It runs inside a temporary container (by default `debian:latest`) and has access to the internet to download server files.
+
+Navigate to the egg's **Install Script** tab to edit the script. The container image and entrypoint used for the install step can also be changed here.
+
+<Note>The install script does not run on server restart — only on initial server creation. To re-run the install script for an existing server, a reinstall must be triggered by an admin from the server's management page.</Note>
+
+### Exporting and importing eggs
+
+You can export an egg as a JSON or YAML file and share it with others or back it up. To export, open the egg and click **Export**, then choose the format.
+
+To import an egg definition into an existing egg, click **Update → from File** and upload the JSON or YAML file. This overwrites the egg's configuration with the imported values.
+
+<Tip>The Pterodactyl community maintains a large public egg library. Eggs from that library can be imported directly using the JSON export format.</Tip>
+
+## Egg repositories
+
+Egg repositories let you connect Calagopus to a remote source of egg definitions and keep them up to date with a single click.
+
+<Steps>
+  <Step title="Create a repository">
+    Navigate to **Egg Repositories** in the admin panel and click **Create**. Enter the repository URL and a display name.
+  </Step>
+  <Step title="Link an egg to a repository egg">
+    When creating or editing an egg, use the **Egg Repository** and **Egg Repository Egg** dropdowns to select the upstream source.
+  </Step>
+  <Step title="Sync from repository">
+    On the egg's settings page, click **Update → from Repository** to pull the latest definition from the linked repository egg.
+  </Step>
+</Steps>
+
+<Info>Syncing from a repository overwrites the egg's configuration. Any local edits to the egg definition are replaced by the repository version.</Info>
